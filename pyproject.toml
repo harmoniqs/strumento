@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "qicklab"
+version = "0.0.0"
+description = "A first-principles QICK tProc-v2 experiment framework (device model + pulse IR + compiler + fitting)."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Harmoniqs" }]
+keywords = ["qick", "tproc-v2", "quantum", "control", "rfsoc", "calibration"]
+dependencies = [
+    "pydantic>=2",
+    "numpy",
+    "scipy",
+    "lmfit",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+# qick (with qick.asm_v2) is required only for the compiler / program / mock
+# layers and any on-board run; the pure layers test without it.
+qick = ["qick"]
+test = ["pytest"]
+dev = ["pytest", "ruff", "mypy"]
+
+# Modality packs are discovered via this entry-point group, so third-party
+# packs install rather than fork (spec §15.3).
+[project.entry-points."qicklab.packs"]
+cqed = "qicklab.packs.cqed"
+
+[tool.hatch.build.targets.wheel]
+packages = ["qicklab"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "pure: no qick / no board required (the bulk of the logic)",
+    "qick: requires qick (compiler / program / mock)",
+    "oracle: cross-checks against the legacy multimode_expts fitting.py",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
