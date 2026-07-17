@@ -28,8 +28,9 @@ pack supplies element types + libraries + the `DispersiveIQ` readout kind. Only 
 the qick-facing layers + the mock need it. tProc **v2**.
 
 **Scope of THIS plan:** `core` + `cqed` pack, spec §11 slices 1–6. **Out of scope** (later plans):
-slice 7b (in-sequence v2 measurement feedback / full active-reset, gated on Sho), the `tweezer` and
-`spin` packs, expt_service unification (§16), and the three open decisions (§14.1 config versioning,
+slice 7b (in-sequence v2 measurement feedback / full active-reset, gated on Sho), **slice 8 /
+codesign enablement (spec §19, D26–D29 — deferred task sketch at the end of this plan)**, the `tweezer`
+and `spin` packs, expt_service unification (§16), and the three open decisions (§14.1 config versioning,
 §14.2 job-server, §16 execution). Config loading here uses a **plain YAML instance file** (versioning
 mechanism deferred to §14.1).
 
@@ -602,9 +603,42 @@ Test `tests/core/test_from_solution.py` (pure), `tests/e2e/test_slice6_oc_import
 
 - Slice **7 / active_reset**: 7a herald/post-selection data path + host-side fallback; **7b** in-sequence
   v2 measurement feedback (gated on Sho, spec R1).
+- **Slice 8 / codesign enablement** (spec §19, D26–D29) — see the deferred task sketch below.
 - `tweezer` pack (§17), `spin` pack (§15.5).
 - expt_service unification (§16), config versioning mechanism (§14.1), job-server integration (§14.2).
 - `dev.coupler.floquet_swap`, catalog auto-retrieval for `dev.prepare`, `register_long_pulse` long drives.
+
+### Slice 8 — codesign enablement (DEFERRED; off the slices-1–6 critical path)
+
+*strumento as a device-model measurement instrument (spec §19). Not started until the core is green; the
+`DeviceModel`/board-description tasks are pure and could start earlier if prioritized, but they are not
+required for first light. Task numbers are sketch-level (S8.x); promote to a dedicated plan when the
+codesign work is scheduled.*
+
+- [ ] **S8.1 — `core/device_model.py`: `DeviceModel` + provenance + diff (pure, D26).** Pydantic
+  `DeviceModel` (elements → params: f_ge/anharmonicity/couplings/T1/T2; per-line `TransferFn`; crosstalk
+  matrix; `source: design|measured|hybrid`; provenance). `diff(design, measured)` → per-parameter deltas
+  with uncertainties. `Device` gains `dev.model`. Tests: round-trip JSON; diff on a synthetic
+  design-vs-measured pair. *No qick.*
+- [ ] **S8.2 — `DeviceModelReport` from the Analyzer (pure, D26).** Collect the slice-2–5 fitter outputs
+  (f_ge, T1, T2, revival, …) into a measured `DeviceModel`, wrap as a `DeviceModelReport` (measured model
+  + `diff` vs the loaded design model + environment stamp, D24). Tests: a mock characterization run emits
+  a report whose params match the fits. *Depends on S8.1 + the fitters (Tasks 11–14).*
+- [ ] **S8.3 — board-description schema + `Wiring.from_board_description` (pure, D27).** Neutral Pydantic
+  board-description (channel roles + generator→DAC/ADC bindings + RF-periphery annotations → §18
+  `SignalChain`). Builder → `Wiring`. Tests: round-trip a board description → `Wiring` for the schuster
+  instance; edit-one-binding leaves pulse factories untouched. *Depends on Task 1 (`wiring.py`).*
+- [ ] **S8.4 — `TransferFn`/crosstalk on `SignalChain` + pre-distortion at `from_solution` (D28).**
+  Add `TransferFn` (H(ω)) + crosstalk to the `SignalChain` (§18); add an optional pre-distortion stage to
+  `from_solution` (regularized deconvolution, out-of-band/DAC-clip guards). Tests: deconvolution recovers
+  a known waveform through a synthetic H(ω) within tol; guards fire on out-of-band/clip. *Depends on
+  Task 15 (`from_solution`) + S8.1 (`TransferFn` lives on the model too).*
+- [ ] **S8.5 — `core/sim.py`: `SimulatorSoc` backend (D29).** Implement the soc `acquire` protocol
+  against a physics simulation (`DeviceModel` → Hamiltonian; Harmoniqs sim backend). A `source="design"`
+  `Device` runs the same experiments/fitters and produces a `DeviceModelReport` with no board. Tests: a
+  design-time device round-trips a Rabi/T1 through the simulator and the fitters recover the injected
+  params. *Depends on S8.1 + the program/experiment layer (Tasks 9, 17). Physics backend is the heavy
+  part — scope it when scheduled.*
 
 ---
 

@@ -21,6 +21,7 @@ It is a ground-up redesign of the core functionality of Stanford's [`SchusterLab
 - **One source of truth.** Every physical quantity lives in exactly one place; nothing derived is stored; adding a pulse type is one edit.
 - **Escape hatch everywhere (Tenet 0).** `StrumentoProgram` *is* an `AveragerProgramV2`. You can splice a raw qick call mid-sequence, hand-write a program body, or drop to the bare API — while still using the abstractions for everything else.
 - **The pure layers need no board.** ~70–80% of the logic (IR, wiring, sweeps, builder, fitters) is importable and unit-testable with no qick installed.
+- **A measurement instrument, not just a runtime.** strumento can be authored from a design-time device model, measure the as-built device, and export the measured model plus a design-vs-measured diff — plus board-aware compilation (pre-distortion for a line's transfer function) — so it closes a hardware ↔ pulse codesign loop rather than only playing pulses one way.
 
 ## Quickstart *(target API — not yet implemented)*
 

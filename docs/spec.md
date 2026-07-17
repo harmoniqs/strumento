@@ -5,7 +5,7 @@ session_id: "e3dfcc03-f686-47a0-b129-29407ed941d0"
 status: draft
 priority: P2
 platform: bosonic
-tags: [spec, strumento, bosonic, multimode, cqed, atoms, tweezer, neutral-atom, thompson-group, aod, imaging-readout, spin, quantum-dot, spinqick, psb-readout, qick, tproc-v2, schuster-lab, multimode_expts, pulse-ir, device-model, modality-pack, device-instance, fluent-builder, config-versioning, single-source-of-truth, active-reset, host-in-loop-feedback, mock-testing, fitting, lmfit, job-server, data-lifecycle, envelope-union, topology-namespaces, station-seam, environment, fridge, maybell]
+tags: [spec, strumento, bosonic, multimode, cqed, atoms, tweezer, neutral-atom, thompson-group, aod, imaging-readout, spin, quantum-dot, spinqick, psb-readout, qick, tproc-v2, schuster-lab, multimode_expts, pulse-ir, device-model, modality-pack, device-instance, fluent-builder, config-versioning, single-source-of-truth, active-reset, host-in-loop-feedback, mock-testing, fitting, lmfit, job-server, data-lifecycle, envelope-union, topology-namespaces, station-seam, environment, fridge, maybell, codesign, device-model, system-identification, transfer-function, pre-distortion, board-description, crosstalk, simulator-backend]
 linked_plan: "./plan.md"
 ---
 
@@ -86,9 +86,10 @@ Its own TODO reads *"Migrate to tProcv2 at some point."* The stack today is four
 ## 2. Locked decisions (from the design session)
 
 *IDs reflect chronological order; D13/D14 are listed next to their thematically-adjacent decisions
-(D4, D9), so the table is grouped rather than strictly numeric. All of D1–D24 are present. D9/D14 are
+(D4, D9), so the table is grouped rather than strictly numeric. All of D1–D29 are present. D9/D14 are
 **open** (§14); D18's expt_service **execution** circulates (§16); the rest are locked. D21–D24 were
-added in the naming/extensibility/elegance/station review round (2026-07-17).*
+added in the naming/extensibility/elegance/station review round (2026-07-17); D25 folds in the qick-v2
+API review; D26–D29 add the codesign-enablement dimension (§19).*
 
 | # | Question | Decision |
 |---|---|---|
@@ -117,6 +118,10 @@ added in the naming/extensibility/elegance/station review round (2026-07-17).*
 | D23 | Gain units in the IR | **`Pulse.gain` carries the v2-native normalized fraction.** The **cqed factories** convert legacy int codes (`gain_frac = gain_int/maxv`, maxv from the soccfg snapshot) at the pack boundary; the calib DB keeps storing ints. Core and the raw-qick escape hatch speak one unit; physical→fraction stays confined to the §6.5 import boundary; sweep axes stay lab-native at the surface (§6.1). *(Supersedes the earlier int-codes-in-the-IR lean.)* |
 | D24 | Environment / station seam | **Model the station's read-only seam, never fridge control (§18):** `core/environment.py` `EnvironmentSource` protocol; the Runner stamps `MeasurementResult.meta["environment"]` at acquire boundaries; optional per-line **signal-chain metadata** in the wiring. Fridge-vendor integration (Maybell-class) = a config profile + a thin adapter, not a fork. Gating, drivers, and any control-plane deferred. |
 | D25 | qick-v2 API confirmed (Sho/Fermilab) | **R2 resolved by Sho Uemura's IntonatoQICK PR #5 review (2026-07-13).** Five facts fold in (all *confirm* strumento's existing design; ref: his [`qick_demos_sho` notebook](https://github.com/meeg/qick_demos_sho/blob/main/tprocv2/00_intro.ipynb)): (1) **subclass `AveragerProgramV2`, override `_initialize()`/`_body()`** (not append-to-object) — strumento §8 already does this, and doing it in Python sidesteps his "doable in Julia?" doubt; (2) **`dump_cfg()` → `QickConfig(json)` builds a program with NO board** — the soccfg snapshot (§3) is obtained this way, so the numeric-golden gate (§10.2) runs offline/CI for real, not just shape-mocked; (3) **multiple pulses per generator + const/flat-top envelopes** (arb-only wastes memory) — this is D22's envelope union exactly; (4) **sweeps need `add_loop`; `reps=1` is single-shot** — strumento §8 already; (5) **sample rates come from the config, not hand-passed** (`dac_rate`/`adc_rate` args were a confusion) — strumento reads them from the soccfg snapshot. strumento is also the clean answer to his PR-#5 program-authoring question (his option 3/4 = a Python-side `AveragerProgramV2` subclass = `StrumentoProgram`); IntonatoQICK's Julia backend delegates to strumento rather than assembling inline (§16.4). |
+| D26 | Device model as a measured artifact (codesign loop-closer, §19) | strumento is a **device-model measurement instrument**, not only a runtime. Define a structured, serializable **`DeviceModel`** (element params — freqs/anharmonicities/couplings/T1/T2 — plus per-line transfer functions and a crosstalk matrix). A `Device` declares `source: design \| measured \| hybrid`; the Analyzer emits a **`DeviceModelReport`** = the measured `DeviceModel` + `diff(design, measured)` + provenance/timestamp/environment stamp (ties D24). Every characterization run updates the measured model — so the calibration path *is* the device-characterization path, and the exported model is the artifact a design → fab → characterize → redesign loop consumes. |
+| D27 | Board-description → `Wiring` (Layer 3, §19) | A neutral, typed **board-description schema** (Pydantic: channel roles + generator→DAC/ADC bindings + RF-periphery annotations feeding the §18 `SignalChain`) and a `Wiring.from_board_description(desc)` builder. Extends single-source-of-truth (§5, §7) *down to the physical board*: the board description is the wiring config's upstream source; a vendor netlist export is **one adapter/producer**, never a coupling. |
+| D28 | Transfer-function-aware compilation (§19) | The board/line is a **linear filter** between DAC and qubit; in-band linear distortion is **pre-compensable in software**. The `SignalChain` (§18) carries a per-line transfer function **H(ω)** (measured via characterization, or modeled from the board description) + inter-line **crosstalk**; the `from_solution` import boundary (§6.5) gains an optional **pre-distortion stage** (regularized deconvolution with out-of-band / DAC-clip guards) so H·ũ ≈ u at the device. Sits alongside the resample + physical→fraction gain-calib the boundary already owns. |
+| D29 | Simulator soc backend (§19) | A **`SimulatorSoc`** implementing the same soc protocol as `MockQickSocV2` / `PyQickSoc`, running a `Device` + `Seq` against a physics simulation, so a **design-time `Device`** (`source: design`) is exercisable *before it is fabricated*. The two ends of the codesign loop — simulation (design-time) and board (as-built) — share one `acquire` interface; the same experiment/fitters run against both. Design-for-extension seam (deferred build). |
 
 ## 3. Package architecture (Approach A)
 
@@ -1201,9 +1206,124 @@ predicate over snapshots), instrument *control* of any kind, vendor drivers them
 `Station` abstraction (the named growth path if the seam ever needs to own instruments; QCoDeS's
 `Station` is the prior art).
 
+## 19. Codesign enablement — strumento as a device-model measurement instrument (D26–D29)
+
+**Frame.** A control framework usually flows one way: config → pulses → board. strumento is designed so
+information also flows **back** — from measurements to a structured device model that can inform the
+*next* design of the hardware it drives. In other words, strumento is not only a *runtime*; it is a
+**device-model measurement instrument** that closes a loop:
+
+```
+design-time device model  ──►  predict / exercise (simulator, §19.3)
+        ▲                              │
+        │                              ▼
+   (re)design                     fabricate / wire up
+        ▲                              │
+        │                              ▼
+   DeviceModelReport  ◄──  measure + characterize (fitters, §9)  ◄──  board-aware compile (§19.2)
+   (measured model + diff, §19.1)
+```
+
+strumento owns three arcs of this loop — **board-aware compilation** (§19.2), **measurement +
+characterization** (§9), and **structured export of the measured model** (§19.1) — plus the ability to
+**exercise a design-time model before it exists** (§19.3). It deliberately does **not** own the
+design/optimization arc (re-specifying the hardware, or optimizing pulses through it): that lives
+*upstream* in the trajectory-optimization stack (Piccolo/Piccolissimo, §6.5) and consumes strumento's
+exported model through a clean, serialized boundary. strumento's job is to make the loop's
+**measurement and board-aware-play ends first-class and honest**, so whatever sits upstream has a
+faithful, machine-readable picture of the as-built device.
+
+Everything here is a generally-useful capability for any lab that iterates on its own hardware; it needs
+no special partner or program to be worth building.
+
+### 19.1 The `DeviceModel`, provenance, and the design-vs-measured diff (D26)
+
+Today a `Device` (§5) bundles wiring + calibration values for *one* fridge, transcribed from what the lab
+has measured. Codesign needs that same structure to be **authored from a prediction** and **compared to
+reality**, so we factor out a **`DeviceModel`** — the structured physical description, separate from the
+runtime `Device`:
+
+```python
+# core/device_model.py  (pure; Pydantic — serializable, diffable)
+class DeviceModel(BaseModel):
+    elements:  dict[str, ElementParams]   # per named element: f_ge, anharmonicity, couplings, T1, T2, …
+    transfer:  dict[str, TransferFn]      # per line: H(ω) (see §19.2)
+    crosstalk: CrosstalkMatrix            # inter-line coupling
+    source:    Literal["design","measured","hybrid"]
+    provenance: dict                      # timestamp, environment stamp (D24), fit uncertainties, …
+```
+
+- A `Device` gains `dev.model: DeviceModel` and declares its `source`. A **design-time** device
+  (`source="design"`) is authored from predicted/proposed parameters — it can be loaded and exercised
+  (§19.3) before any hardware exists. A **measured** model is produced by characterization.
+- The Analyzer (§9.1) gains a terminal artifact, the **`DeviceModelReport`**: the measured `DeviceModel`
+  + `diff(design, measured)` (per-parameter deltas with uncertainties) + provenance. This is the loop's
+  feedback artifact — a faithful, serialized picture of the as-built device that an upstream (re)design
+  process consumes. It is a natural superset of per-experiment `FitResult`s: the fitters already
+  recover $f_{ge}$, $T_1$, $T_2$, revival times, etc. (§9.3); D26 is the discipline of **collecting them
+  into one structured model, keyed to the device, versioned, and exportable** — rather than leaving them
+  as scattered per-run fit outputs.
+- **"The calibration path is the characterization path."** Because closed-loop calibration (§16) already
+  measures device parameters every run, the measured `DeviceModel` is updated *for free* by ordinary use;
+  strumento is the accumulator. No separate characterization campaign is required to keep the feedback
+  artifact current.
+
+### 19.2 Board-description → `Wiring`, and transfer-function-aware compilation (D27, D28)
+
+**Board description (D27).** The wiring model (§5) already separates device language (Layer 1) from the
+DAC map (Layer 2). Codesign adds a **Layer 3 upstream**: a neutral, typed **board-description schema**
+(channel roles, generator→DAC/ADC bindings, and RF-periphery annotations — filters, PA/attenuation
+stages, that populate the §18 `SignalChain`). `Wiring.from_board_description(desc)` generates the Layer-2
+`Wiring` from it, extending single-source-of-truth (§7) **down to the physical board**: the board
+*is* the wiring config's upstream source, and re-binding a trace is a one-line board-description edit
+that leaves every pulse factory untouched (the §5 Layer-1/Layer-2 property, now proven from copper). The
+schema is vendor-neutral; any netlist/CAD export is **one producer/adapter**, not a coupling.
+
+**Transfer functions and pre-distortion (D28).** The path from a DAC to the qubit is a **linear filter**
+(traces, filters, line parasitics, an AOD's transfer function). Its in-band distortion is a known,
+measurable transfer function **H(ω)** — and in-band linear distortion is **pre-compensable in software**:
+
+- The `SignalChain` (§18) carries a per-line **`TransferFn`** (H(ω)) — obtained by **measurement**
+  (VNA / round-trip characterization → stored on the measured `DeviceModel`, §19.1) or **modeled** from
+  the board description (above) — and inter-line **crosstalk** coefficients.
+- The `from_solution(...)` import boundary (§6.5) gains an optional **pre-distortion stage**: given a
+  solved pulse $u(t)$ and H(ω), emit the pre-distorted waveform $\tilde{u}$ with $H * \tilde{u} \approx
+  u$ at the device (regularized deconvolution; explicit out-of-band and DAC-clip guards). It composes
+  with the resample and physical→fraction gain-calib the boundary already owns (D23).
+- **Scope discipline:** pre-distortion covers the *linear, in-band, known-H* regime — the common case.
+  It cannot fix passband notches, insufficient bandwidth, dynamic range, or crosstalk; strumento's job is
+  to **measure and expose** those (via the `DeviceModel`), making the boundary between "fixable in
+  software" and "must change the hardware" explicit and quantitative. Optimizing the pulse *through* the
+  filter (as opposed to pre-correcting a fixed pulse) belongs upstream in the optimizer, not here.
+
+### 19.3 Simulator soc backend (D29)
+
+strumento's soc surface is a small protocol (build → acquire → typed data), implemented three ways:
+`MockQickSocV2` (shapes/validators, no physics), `PyQickSoc` (the real board), and — added here — a
+**`SimulatorSoc`** that runs a `Device` + `Seq` against a **physics simulation** (the natural backend is
+the Harmoniqs simulation stack; a `DeviceModel` → Hamiltonian map). Because it satisfies the same
+`acquire` protocol, **the same experiment modules and fitters run against it unchanged** — so a
+**design-time `Device`** (`source="design"`, §19.1) can be exercised, characterized, and its
+`DeviceModelReport` produced *before the hardware is fabricated*. Simulation (design-time) and board
+(as-built) become the two ends of one interface; the diff between their `DeviceModel`s is the whole point
+of the loop. This is a design-for-extension seam — the protocol is defined now; the physics backend is a
+**deferred build** (spec §11 slice list; it is not on the core critical path).
+
+### 19.4 The boundary strumento holds
+
+strumento provides the **measurement, board-aware compilation, and structured export** ends of the
+codesign loop, behind clean serialized interfaces (`DeviceModel`, `DeviceModelReport`, the
+board-description schema). It does **not** contain hardware-design logic, hardware qualification policy,
+or any optimization over hardware parameters — those consume strumento's artifacts from *upstream* and
+stay out of the open substrate, exactly as the QILC *method* stays out of strumento (§16.3). This keeps
+strumento honestly general (any lab iterating on its own hardware benefits) while leaving the
+design-side machinery to the layers above it.
+
 ---
 
 *End of spec. §14 items are open pending circulation; §16's expt_service **execution** circulates with
 Sho (direction locked); §17's tweezer pack (D19) needs a Thompson requirements pass. §15 records the
-generality stance (two real packs); §18 records the environment/station seam (D24). Next steps per the
-brainstorming workflow: spec review → user review → `writing-plans`.*
+generality stance (two real packs); §18 records the environment/station seam (D24); §19 records the
+codesign-enablement dimension (D26–D29) — measurement + board-aware compilation + structured
+device-model export, with the design/optimization side held upstream. Next steps per the brainstorming
+workflow: spec review → user review → `writing-plans`.*
