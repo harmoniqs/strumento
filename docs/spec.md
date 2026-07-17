@@ -109,6 +109,7 @@ added in the naming/extensibility/elegance/station review round (2026-07-17).*
 | D22 | Envelope IR | **Typed envelope union (§6.1)** replaces the flat `Shape` enum + shape-specific `Pulse` fields: `Gaussian`/`FlatTop`/`Const`/`Arb` frozen dataclasses; the compiler lowers via a **type-keyed registry**, so packs register new envelopes + lowerings (`PolyChirp` lives in the `tweezer` pack — core stays stock-v2). Fixes a real gap (PolyChirp had no coefficient fields in the IR) and dedup keys on the frozen envelope (R6). |
 | D23 | Gain units in the IR | **`Pulse.gain` carries the v2-native normalized fraction.** The **cqed factories** convert legacy int codes (`gain_frac = gain_int/maxv`, maxv from the soccfg snapshot) at the pack boundary; the calib DB keeps storing ints. Core and the raw-qick escape hatch speak one unit; physical→fraction stays confined to the §6.5 import boundary; sweep axes stay lab-native at the surface (§6.1). *(Supersedes the earlier int-codes-in-the-IR lean.)* |
 | D24 | Environment / station seam | **Model the station's read-only seam, never fridge control (§18):** `core/environment.py` `EnvironmentSource` protocol; the Runner stamps `MeasurementResult.meta["environment"]` at acquire boundaries; optional per-line **signal-chain metadata** in the wiring. Fridge-vendor integration (Maybell-class) = a config profile + a thin adapter, not a fork. Gating, drivers, and any control-plane deferred. |
+| D25 | qick-v2 API confirmed (Sho/Fermilab) | **R2 resolved by Sho Uemura's IntonatoQICK PR #5 review (2026-07-13).** Five facts fold in (all *confirm* qicklab's existing design; ref: his [`qick_demos_sho` notebook](https://github.com/meeg/qick_demos_sho/blob/main/tprocv2/00_intro.ipynb)): (1) **subclass `AveragerProgramV2`, override `_initialize()`/`_body()`** (not append-to-object) — qicklab §8 already does this, and doing it in Python sidesteps his "doable in Julia?" doubt; (2) **`dump_cfg()` → `QickConfig(json)` builds a program with NO board** — the soccfg snapshot (§3) is obtained this way, so the numeric-golden gate (§10.2) runs offline/CI for real, not just shape-mocked; (3) **multiple pulses per generator + const/flat-top envelopes** (arb-only wastes memory) — this is D22's envelope union exactly; (4) **sweeps need `add_loop`; `reps=1` is single-shot** — qicklab §8 already; (5) **sample rates come from the config, not hand-passed** (`dac_rate`/`adc_rate` args were a confusion) — qicklab reads them from the soccfg snapshot. qicklab is also the clean answer to his PR-#5 program-authoring question (his option 3/4 = a Python-side `AveragerProgramV2` subclass = `QickLabProgram`); IntonatoQICK's Julia backend delegates to qicklab rather than assembling inline (§16.4). |
 
 ## 3. Package architecture (Approach A)
 
@@ -169,9 +170,11 @@ which the job-server config blob (§14.2) needs. The hot-path IR (`Pulse`/`Delay
 dataclasses (runtime objects, not serialized config).
 
 > **`soccfg` and purity.** `Device` holds the **JSON soccfg snapshot** (a plain dict — pure, no qick
-> import), *not* a live `qick.QickConfig`. The **compiler/program** constructs the `QickConfig` from
-> that snapshot (or receives a live one from the board), and `quantize()` (§6.1) takes the built
-> `QickConfig`. So `device.py` stays qick-free; only the qick-facing modules touch `QickConfig`.
+> import), *not* a live `qick.QickConfig`. The snapshot is produced on a board **once** via
+> `QickSoc.dump_cfg()` and committed; the **compiler/program** reconstructs a `QickConfig` from it with
+> `QickConfig(json)` — **no board required** (confirmed by Sho, D25) — and `quantize()` (§6.1) takes the
+> built `QickConfig`. So `device.py` stays qick-free; only the qick-facing modules touch `QickConfig`,
+> and the *entire* program build/compile path is exercisable offline against the snapshot.
 
 Each unit answers "what does it do / how do I use it / what does it depend on" in isolation. The
 Pulse IR is the spine: experiments never touch qick; only the compiler does.
@@ -678,7 +681,10 @@ It does **not** inherit the 8.3 kloc fitting mess.
   only leaf `soc.*` calls are stubbed (correctly-shaped zeros, right dtypes). v2's param validators fire
   on a buggy program with no FPGA. (v2's acquire path calls a slightly different soc surface than v1 —
   the mock covers v2's.)
-- **Committed soccfg snapshot** for off-board runs (regenerate the v2 shape once from the target board).
+- **Committed soccfg snapshot** for off-board runs — captured once on the target board via
+  `QickSoc.dump_cfg()` and rebuilt with `QickConfig(json)` (no board thereafter — confirmed by Sho, D25).
+  This makes gate 2 below a **real offline construction** of the concrete `AveragerProgramV2`, not merely
+  a shape mock.
 - **Three acceptance gates.** Structural alone is too weak for a reimplementation — a shapes-only mock
   would pass the int-vs-float gain bug (§6.1) unnoticed:
   1. **Structural gate (mock).** Program builds + compiles on `MockQickSocV2`; readout shapes match the
@@ -750,11 +756,18 @@ Only slice **7b** carries real uncertainty; 7a and everything before it do not.
     in-sequence reset, herald in software from raw shots — so slice 7 degrades gracefully instead of
     being all-or-nothing. (Reset *quality* differs, but the experiment surface stays usable.)
   Slices 1–5 do not depend on any of this.
-- **R2 — exact v2 API names.** `AveragerProgramV2`, `_initialize`/`_body`, `declare_gen`, `add_gauss`,
-  `add_pulse`, `add_loop`, `QickSweep1D`, `pulse`, `delay`/`delay_auto`, `trigger`/`readout` are used
-  from recollection; **verify against the `../qick` fork / version the collaboration is targeting** before
-  implementation. The `storage_in` = `mux4_v2` generator quirk (rejects `declare_gen` without mixer/mux)
-  must be handled explicitly in the wiring/compiler.
+- **R2 — exact v2 API names — LARGELY RESOLVED (Sho Uemura / Fermilab, IntonatoQICK PR #5 review,
+  2026-07-13; see D25).** `AveragerProgramV2`, `_initialize`/`_body`, `declare_gen`, `add_gauss`,
+  `add_pulse`, `add_loop`, `QickSweep1D`, `pulse`, `delay`/`delay_auto`, `trigger`/`readout` were used
+  from recollection; Sho's review **confirms** the shape and the reference is his notebook
+  [`meeg/qick_demos_sho` `tprocv2/00_intro.ipynb`](https://github.com/meeg/qick_demos_sho/blob/main/tprocv2/00_intro.ipynb).
+  Key correction: you **subclass `AveragerProgramV2` and override `_initialize()`/`_body()`** — you do
+  *not* append declarations to a bare program object (that idiom is `QickProgramV2` only). qicklab's §8
+  `QickLabProgram(AveragerProgramV2)` already picked this pattern; doing it **in Python** sidesteps the
+  "is this doable in Julia?" problem that made the IntonatoQICK inline-assembly approach awkward (§16.4).
+  Remaining concrete artifact: the **`dump_cfg()` JSON** from the target board (ask Sho) — see D25 / §10.
+  The `storage_in` = `mux4_v2` generator quirk (rejects `declare_gen` without mixer/mux) must be handled
+  explicitly in the wiring/compiler.
 - **R3 — multi-qubit generality.** The core is single-qubit-centric (`qTest`). The device model
   (`Qubit` element, per-line wiring) generalizes, but the first slices assume one qubit. Multi-qubit is
   out of scope for the minimal core; the model should not preclude it.
@@ -1005,6 +1018,30 @@ qicklab stays **strategy-agnostic**: it exposes *import-pulse / acquire / discri
 ILCStrategy (private method) — qicklab is the open layer the private strategy ultimately runs on. No
 ILC/QILC logic ever lands in qicklab. (This also keeps qicklab honestly general for non-Harmoniqs
 practitioners, §15 — a spinQICK-style user gets the substrate without the calibration method.)
+
+### 16.4 qicklab resolves IntonatoQICK's v2 program-authoring question (Sho, PR #5)
+
+Sho's IntonatoQICK PR #5 review (D25) surfaced the central seam: an `AveragerProgramV2` must be
+**subclassed** (override `_initialize()`/`_body()`), so assembling one *inline from Julia* (append
+declarations to a program object) is the wrong idiom. His options were (1) reimplement the averager loop
+in Julia on `QickProgramV2` — he dislikes (duplicates qick); (2) subclass `AveragerProgramV2` in Julia —
+he doubts it's doable; (3) a **Python-side program class**, parametrized by a config dict — his
+preference; (4) a new QICK-side class taking two `AsmV2` objects.
+
+**qicklab is option 3/4 done right.** `QickLabProgram(AveragerProgramV2)` (§8) *is* the Python-side
+subclass, but instead of losing the ability to express the sequence (his worry about option 3), the
+sequence is authored in the **`Seq` IR** (Julia/Intonato hands over a pulse/solution via `from_solution`,
+§6.5) and lowered by the compiler. So the division of labour becomes:
+
+```
+Intonato (Julia)  → AbstractPulse / solution
+  IntonatoQICK.jl → thin backend: PythonCall → qicklab, hand over the pulse, get Measurements back
+    qicklab (Py)  → QickLabProgram(AveragerProgramV2): _initialize/_body, compile Seq, acquire, reduce
+```
+
+IntonatoQICK's `PyQickSoc.play_program!` stops assembling `AveragerProgramV2` inline and instead
+**delegates to qicklab** — which removes exactly the awkwardness Sho flagged. This is the concrete
+execution of D18 ("expt_service/IntonatoQICK unify over qicklab") and what to socialize with Sho.
 
 ## 17. The `tweezer` modality pack — Thompson neutral atoms (D19)
 

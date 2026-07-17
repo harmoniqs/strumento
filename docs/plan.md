@@ -86,15 +86,19 @@ qicklab/
   `pydantic>=2`, `numpy`, `scipy`, `lmfit`; `[project.optional-dependencies]` `qick = ["qick"]`,
   `test = ["pytest"]`. Configure `pytest` with markers `qick` (needs board/qick) and `pure`.
 
-- [ ] **Step 2: Verify the target qick v2 API (BLOCKER — spec R2).** Locate the qick that Sho/Stanford
-  target (the `../qick` fork or upstream `qick` with `qick.asm_v2`). In a scratch REPL confirm the exact
-  names and record them in `docs/qick-v2-api-notes.md`: `AveragerProgramV2`, `_initialize`/`_body`,
-  `declare_gen(ch,nqz,mixer_freq=,mux_freqs=)`, `add_gauss`, `add_pulse`, `add_loop`, `QickSweep1D`,
-  `pulse`, `delay`/`delay_auto`, `trigger`, `acquire` return shape, and the **gain convention** (float
-  fraction vs `maxv`; confirm the `gain_frac = gain_int/maxv` divisor — spec §6.1).
-  Expected: a written note pinning the version + names. **If the fork lacks `asm_v2`, stop and escalate**
-  (Aaron/Sho) — the qick-facing tasks (7–9, and every slice) depend on it. The pure tasks (1–6) proceed
-  regardless.
+- [ ] **Step 2: Verify the target qick v2 API (spec R2 — LARGELY RESOLVED by Sho, spec D25).** The API
+  shape is confirmed by Sho Uemura's IntonatoQICK PR #5 review; the reference is his notebook
+  **[`meeg/qick_demos_sho` `tprocv2/00_intro.ipynb`](https://github.com/meeg/qick_demos_sho/blob/main/tprocv2/00_intro.ipynb)**.
+  Transcribe the exact names/signatures from that notebook into `docs/qick-v2-api-notes.md`:
+  `AveragerProgramV2` (**subclass it; override `_initialize()`/`_body()` — do NOT append to a bare
+  program object; that idiom is `QickProgramV2` only**), `declare_gen(ch,nqz,mixer_freq=,mux_freqs=)`,
+  `add_gauss`, `add_pulse` (+ **const/flat-top** envelopes, not arb-only — spec D22/D25), `add_loop`,
+  `QickSweep1D`, `pulse`, `delay`/`delay_auto`, `trigger`, `acquire` return shape, and the **gain
+  convention** (float fraction vs `maxv`; confirm the `gain_frac = gain_int/maxv` divisor — spec §6.1).
+  `asm_v2` **is present** (Sho's notebook uses it) — the earlier "escalate if missing" contingency is
+  moot. **Remaining concrete artifact:** obtain the board's **`QickSoc.dump_cfg()` JSON** from Sho and
+  commit it as the soccfg snapshot (spec §3/§10) — this lets Task 7–10 construct a real
+  `AveragerProgramV2` offline (`QickConfig(json)`), no board. The pure tasks (1–6) proceed regardless.
 
 - [ ] **Step 3: Commit** — `git add pyproject.toml qicklab tests docs && git commit -m "chore: qicklab package skeleton + qick-v2 API notes"`
 
@@ -332,17 +336,24 @@ Modify `qicklab/core/device.py` (bind ops per named element); Test `tests/packs/
 
 **Files:** Create `qicklab/core/mock.py`; Test `tests/core/test_mock.py` (marked `qick`)
 
-- [ ] **Step 1: Failing test** — instantiate `MockQickSocV2`; assert it exposes the v2 acquire soc
-  surface (the methods v2's `AveragerProgramV2.acquire` calls — confirm the exact list from Task 0's
-  API notes) and that its data-return method yields **correctly-shaped zeros, int dtype** for a given
-  `(reps, loop_dims, n_ro)`. *(Port the v1 `mock_hardware.MockQickSoc` shape/dtype contract to v2's
-  acquire path — see `.../multimode_expts/experiments/mock_hardware.py`.)*
+> **D25 (Sho):** `MockQickSocV2` should be built around a **real `QickConfig` reconstructed from the
+> committed `dump_cfg()` JSON** (`QickConfig(json)` — no board), so the program genuinely
+> builds/compiles (v2 validators fire) and only the leaf *acquire/data* `soc.*` calls are stubbed. This
+> is the v1 mock strategy carried to v2 — now known to work offline (Task 0 obtains the JSON).
+
+- [ ] **Step 1: Failing test** — construct `MockQickSocV2` from the committed soccfg JSON snapshot;
+  assert it carries a real `QickConfig` (so `declare_gen`/`add_pulse` validate) **and** stubs the v2
+  acquire soc surface (the leaf methods v2's `AveragerProgramV2.acquire` calls — from Task 0's API
+  notes), whose data-return yields **correctly-shaped zeros, int dtype** for a given `(reps, loop_dims,
+  n_ro)`. *(Port the v1 `mock_hardware.MockQickSoc` shape/dtype contract to v2's acquire path — see
+  `.../multimode_expts/experiments/mock_hardware.py`.)*
 
 - [ ] **Step 2: Run — expect FAIL.**
 
-- [ ] **Step 3: Implement** `MockQickSocV2` — no-op config/load methods; a `poll`/`get_*` path returning
-  zeros shaped `(*loop_dims, n_ro, ...)` int dtype, per the v2 acquire loop's assertions. Cover the
-  three v2 acquire entry points if the target qick has them.
+- [ ] **Step 3: Implement** `MockQickSocV2` — wrap a `QickConfig(json)` from the committed snapshot;
+  stub only the leaf acquire/data path (`poll`/`get_*`) returning zeros shaped `(*loop_dims, n_ro, ...)`
+  int dtype, per the v2 acquire loop's assertions. Cover the three v2 acquire entry points if the target
+  qick has them. *(Until Task 0 provides the JSON, gate this test/fixture on the snapshot's presence.)*
 
 - [ ] **Step 4–5: Pass + commit** `feat(core): MockQickSocV2 harness`
 
@@ -581,6 +592,8 @@ Test `tests/core/test_from_solution.py` (pure), `tests/e2e/test_slice6_oc_import
 - All six slices' e2e tests green on `MockQickSocV2` (**structural gate**, spec §10.1).
 - **Numeric-golden gate** (spec §10.2): for ge_pi / f0g1 / storage-swap / an OC pulse, `quantize()`
   realized values (freq, gain-frac, cycles, envelope samples) match hand-computed / v1-derived goldens.
+  With the committed `dump_cfg()` snapshot (Task 0/7), this compiles a **real `AveragerProgramV2` offline**
+  (`QickConfig(json)`, no board — spec D25), so the gate validates actual v2 assembly, not just shapes.
 - `core` imports with `qick` absent (pure layers); qick-facing tests marked `qick`.
 - **Physics-agreement gate (spec §10.3) is explicitly OUT of scope here** — it needs the real board +
   the collaboration (Stanford/Sho); this plan stops at mock + numeric-golden.
