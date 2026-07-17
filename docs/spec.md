@@ -5,13 +5,20 @@ session_id: "e3dfcc03-f686-47a0-b129-29407ed941d0"
 status: draft
 priority: P2
 platform: bosonic
-tags: [spec, qicklab, bosonic, multimode, cqed, atoms, tweezer, neutral-atom, thompson-group, aod, imaging-readout, spin, quantum-dot, spinqick, psb-readout, qick, tproc-v2, schuster-lab, multimode_expts, pulse-ir, device-model, modality-pack, device-instance, fluent-builder, config-versioning, single-source-of-truth, active-reset, host-in-loop-feedback, mock-testing, fitting, lmfit, job-server, data-lifecycle, envelope-union, topology-namespaces, station-seam, environment, fridge, maybell]
+tags: [spec, strumento, bosonic, multimode, cqed, atoms, tweezer, neutral-atom, thompson-group, aod, imaging-readout, spin, quantum-dot, spinqick, psb-readout, qick, tproc-v2, schuster-lab, multimode_expts, pulse-ir, device-model, modality-pack, device-instance, fluent-builder, config-versioning, single-source-of-truth, active-reset, host-in-loop-feedback, mock-testing, fitting, lmfit, job-server, data-lifecycle, envelope-union, topology-namespaces, station-seam, environment, fridge, maybell]
 linked_plan: "./plan.md"
 ---
 
-# `qicklab` — a first-principles QICK tProc-v2 experiment framework (first target: the Schuster multimode device)
+# `strumento` — a first-principles QICK tProc-v2 experiment framework (first target: the Schuster multimode device)
 
-> **What this is.** A design-of-record for a **fresh, standalone Python package**, `qicklab` — a
+> **Renamed 2026-07-17: `qicklab` → `strumento`.** The package is renamed to avoid claiming QICK's
+> namespace (it reads as quasi-official and near-collides with KIT's `qiclib`), to be OSS-safe (the
+> `strumento` PyPI name is free; `qicklab`'s vibe wasn't the issue, the brand was), and to join the
+> Harmoniqs Italian-musical family — *strumento* = "instrument" (QICK is the **Instrument**ation Control
+> Kit; strumento is the instrument on top). The vault filename keeps `qicklab` as a stable historical id;
+> the GitHub repo and Python package are `strumento`.
+
+> **What this is.** A design-of-record for a **fresh, standalone Python package**, `strumento` — a
 > general **QICK tProc-v2 experiment framework** (device model + pulse IR + compiler + experiment/fitting
 > lifecycle + a raw-qick escape hatch). Its **first target** is the *core functionality* of Stanford's
 > [`SchusterLab/multimode_expts`](https://github.com/SchusterLab/multimode_expts)
@@ -87,29 +94,29 @@ added in the naming/extensibility/elegance/station review round (2026-07-17).*
 |---|---|---|
 | D1 | Migration goal | **First-principles greenfield**, not port-in-place. Keep core functionality, free to redesign architecture. |
 | D2 | Functional surface of first slice | **Broad multimode core**: single-qubit (ge/ef) + f0g1 + storage swaps + parity + active_reset. |
-| D3 | Where it lives | **Fresh standalone package** (`qicklab`), outside `multimode_expts`. |
+| D3 | Where it lives | **Fresh standalone package** (`strumento`), outside `multimode_expts`. |
 | D4 | Fitting/data-processing | **New `lmfit`-based core fitters** (Rabi/T1/T2/parity) behind a typed result seam, **validated against the current `fitting.py` as a physics oracle** (§9). Full fit-layer refactor is a separate follow-on. |
 | D13 | Data lifecycle | **Keep the high-level `Experiment` contract** (`go`/`acquire`/`analyze`/`display`/`save`) but **separate the internals** into distinct collaborators — Runner (acquire) / Analyzer (lmfit fitters) / Display (plot). The v1 conflation lives in the *implementation*, not the interface (§9). |
 | D5 | Architecture | **Approach A — Pulse-IR + compiler**, thin base class; logic in bounded, independently-testable modules. |
-| D6 | Escape hatch | **Every abstraction is escapable** (Tenet 0). `QickLabProgram` *is* an `AveragerProgramV2`; raw qick reachable at three levels. |
+| D6 | Escape hatch | **Every abstraction is escapable** (Tenet 0). `StrumentoProgram` *is* an `AveragerProgramV2`; raw qick reachable at three levels. |
 | D7 | Channel abstraction | **Model the device, not the FPGA** (Tenet 1). Two layers: device language on top, swappable DAC wiring underneath. |
 | D8 | Sequence surface | **Fluent builder** `Seq().play(...).wait(...).raw(...).measure()` as primary. |
 | D9 | Config versioning | **OPEN — to circulate (§14.1).** Tension between append-only immutable snapshots (conflict-free by construction; the *current* model) and git-native (simpler, but race-prone under the shared worker + concurrent users). The earlier lean toward git-native is reopened given the operational reality. |
 | D10 | Config integrity | **Single source of truth** for every physical quantity; nothing derived is stored; low-friction extension. |
-| D14 | Job-server / multi-user | **OPEN — to circulate (§14.2).** How qicklab relates to the existing FastAPI + SQLite + single-worker queue: compatible-with vs a clean re-take on the runner vs reimplement. Aaron to circulate. |
+| D14 | Job-server / multi-user | **OPEN — to circulate (§14.2).** How strumento relates to the existing FastAPI + SQLite + single-worker queue: compatible-with vs a clean re-take on the runner vs reimplement. Aaron to circulate. |
 | D11 | Pulse API | **Typed factory functions**, no string keys, no `eval`; pulses are *computed from calibration*, not a stored bank keyed by strings. |
 | D12 | `dev` | The one loaded `Device` object (wiring + calibrations + soccfg **snapshot** + datasets); factory namespaces hang off it. The compiler builds the live `QickConfig` from the snapshot, keeping `device.py` qick-free. |
 | D15 | Generality / horizontal scope | **Design-for-extension** (§15): modality-agnostic `core` + per-modality **modality packs** + per-fridge **device instances** (§5.1). **Three packs: `cqed` (build, Stanford) + `tweezer` (build, Thompson — §17) + `spin` (designed, spinQICK-modeled, build-gated on a spin user — §15.5).** `cqed`+`tweezer` are two real, very different modalities in hand; `spin` is the third data point (shipped external framework) that keeps `core` honest. |
 | D16 | Config schema | **Pydantic** for the config layer (wiring, device, pack calibration) — validation + JSON round-trip for the §14.2 job blob, matching spinQICK. Hot-path IR (`Pulse`/`Delay`/`Seq`) stays plain dataclasses. |
 | D17 | Optimal-control / Piccolo seam | **Drop `dev.optimal_control`** → address by operation (`dev.prepare(target)` / `dev.gate(op)`; realization analytic *or* OC). First-class **`from_solution(...)` import boundary** (artifact → `Seq` wrapping a normalized-ARB `Segment`, drive→line map, physical→DAC gain calib, resample, provenance) + **`Segment`/simultaneity** in the IR — **in the minimal core** (§6.5). **Catalog auto-retrieval deferred.** |
-| D18 | Calibration-stack relationship | **qicklab is the open substrate at the bottom of the QILC stack** (Intonatissimo→Intonato→IntonatoQICK→qicklab→board); it stays **strategy-agnostic** (QILC method stays in Intonatissimo). **`expt_service` unifies as a thin adapter over qicklab** (direction locked; execution to circulate with Sho — §16). `from_solution` (§6.5) is the QILC-iterate-on-hardware seam; readout reducers emit Intonato's measurement vectors (§16). |
+| D18 | Calibration-stack relationship | **strumento is the open substrate at the bottom of the QILC stack** (Intonatissimo→Intonato→IntonatoQICK→strumento→board); it stays **strategy-agnostic** (QILC method stays in Intonatissimo). **`expt_service` unifies as a thin adapter over strumento** (direction locked; execution to circulate with Sho — §16). `from_solution` (§6.5) is the QILC-iterate-on-hardware seam; readout reducers emit Intonato's measurement vectors (§16). |
 | D20 | Pack/instance model + `spin` pack | **Two-layer device model (§5.1):** a **modality pack** = element *types* + libraries + readout kind + calib *schema* (code, reusable); a **device instance** = topology + wiring + calibration *values* (config, per fridge, §14.1). "Multimode" is a **`cqed` instance**, not a pack; transmon / multi-transmon / transmon+bosonic are free topologies. Add a **`spin`** (quantum-dot) modality pack (spinQICK-modeled — Dot/Plunger/Barrier, LD + exchange-only, PSB readout), **designed now, build-gated on a spin user** (§15.5). |
 | D19 | Tweezer pack + core sharpenings | Build the **`tweezer` modality pack** (Thompson instance, **grounded in arXiv 2506.13724**): X/Y AOD axes = **32-tone mux** generators, moves = a new **`PolyChirp`** envelope (5th-order freq + 3rd-order amp; pack-registered, §6.1/D22), **`ImagingReadout`** (camera + frame grabber) + occupancy discriminator, **host-in-loop rearrangement** (PC→tProc, ~25 ms); transport via Piccolissimo `TweezerTransportProblem` → `from_solution`. **Three `core` additions confirmed** (§17): (a) external-detector readout, (b) persistent-gen + multi-detection lifecycle, (c) host-in-the-loop feedback. Targets a **Thompson custom QICK firmware variant** (polynomial-chirp DDS); remaining details need a Thompson requirements pass. |
 | D21 | Namespace binding | **Topology-derived namespaces (§5.2).** The pack maps element *types* → ops classes (`Transmon→TransmonOps`, `BosonicMode→ModeOps`, `Coupler→CouplerOps`); `Device.load` binds one namespace per **named element instance** — `dev.qubit`/`dev.manipulate` exist because the *instance* names them. Multi-qubit (`dev.q0`/`dev.q1`) and non-Schuster naming fall out free; `dev.sideband` is an instance-declared alias; no instance name appears in pack code ("manipulate" was Schuster jargon leaking into the pack). |
 | D22 | Envelope IR | **Typed envelope union (§6.1)** replaces the flat `Shape` enum + shape-specific `Pulse` fields: `Gaussian`/`FlatTop`/`Const`/`Arb` frozen dataclasses; the compiler lowers via a **type-keyed registry**, so packs register new envelopes + lowerings (`PolyChirp` lives in the `tweezer` pack — core stays stock-v2). Fixes a real gap (PolyChirp had no coefficient fields in the IR) and dedup keys on the frozen envelope (R6). |
 | D23 | Gain units in the IR | **`Pulse.gain` carries the v2-native normalized fraction.** The **cqed factories** convert legacy int codes (`gain_frac = gain_int/maxv`, maxv from the soccfg snapshot) at the pack boundary; the calib DB keeps storing ints. Core and the raw-qick escape hatch speak one unit; physical→fraction stays confined to the §6.5 import boundary; sweep axes stay lab-native at the surface (§6.1). *(Supersedes the earlier int-codes-in-the-IR lean.)* |
 | D24 | Environment / station seam | **Model the station's read-only seam, never fridge control (§18):** `core/environment.py` `EnvironmentSource` protocol; the Runner stamps `MeasurementResult.meta["environment"]` at acquire boundaries; optional per-line **signal-chain metadata** in the wiring. Fridge-vendor integration (Maybell-class) = a config profile + a thin adapter, not a fork. Gating, drivers, and any control-plane deferred. |
-| D25 | qick-v2 API confirmed (Sho/Fermilab) | **R2 resolved by Sho Uemura's IntonatoQICK PR #5 review (2026-07-13).** Five facts fold in (all *confirm* qicklab's existing design; ref: his [`qick_demos_sho` notebook](https://github.com/meeg/qick_demos_sho/blob/main/tprocv2/00_intro.ipynb)): (1) **subclass `AveragerProgramV2`, override `_initialize()`/`_body()`** (not append-to-object) — qicklab §8 already does this, and doing it in Python sidesteps his "doable in Julia?" doubt; (2) **`dump_cfg()` → `QickConfig(json)` builds a program with NO board** — the soccfg snapshot (§3) is obtained this way, so the numeric-golden gate (§10.2) runs offline/CI for real, not just shape-mocked; (3) **multiple pulses per generator + const/flat-top envelopes** (arb-only wastes memory) — this is D22's envelope union exactly; (4) **sweeps need `add_loop`; `reps=1` is single-shot** — qicklab §8 already; (5) **sample rates come from the config, not hand-passed** (`dac_rate`/`adc_rate` args were a confusion) — qicklab reads them from the soccfg snapshot. qicklab is also the clean answer to his PR-#5 program-authoring question (his option 3/4 = a Python-side `AveragerProgramV2` subclass = `QickLabProgram`); IntonatoQICK's Julia backend delegates to qicklab rather than assembling inline (§16.4). |
+| D25 | qick-v2 API confirmed (Sho/Fermilab) | **R2 resolved by Sho Uemura's IntonatoQICK PR #5 review (2026-07-13).** Five facts fold in (all *confirm* strumento's existing design; ref: his [`qick_demos_sho` notebook](https://github.com/meeg/qick_demos_sho/blob/main/tprocv2/00_intro.ipynb)): (1) **subclass `AveragerProgramV2`, override `_initialize()`/`_body()`** (not append-to-object) — strumento §8 already does this, and doing it in Python sidesteps his "doable in Julia?" doubt; (2) **`dump_cfg()` → `QickConfig(json)` builds a program with NO board** — the soccfg snapshot (§3) is obtained this way, so the numeric-golden gate (§10.2) runs offline/CI for real, not just shape-mocked; (3) **multiple pulses per generator + const/flat-top envelopes** (arb-only wastes memory) — this is D22's envelope union exactly; (4) **sweeps need `add_loop`; `reps=1` is single-shot** — strumento §8 already; (5) **sample rates come from the config, not hand-passed** (`dac_rate`/`adc_rate` args were a confusion) — strumento reads them from the soccfg snapshot. strumento is also the clean answer to his PR-#5 program-authoring question (his option 3/4 = a Python-side `AveragerProgramV2` subclass = `StrumentoProgram`); IntonatoQICK's Julia backend delegates to strumento rather than assembling inline (§16.4). |
 
 ## 3. Package architecture (Approach A)
 
@@ -123,7 +130,7 @@ Three packs in the map: **`cqed`** (superconducting transmon+bosonic — Stanfor
 (neutral-atom AOD — Thompson, §17), **`spin`** (quantum-dot — spinQICK-modeled, §15.5).
 
 ```
-qicklab/
+strumento/
   core/                       ─────────────── modality-AGNOSTIC (no physics knowledge) ───────────────
     wiring.py       Wiring: line/generator → DAC binding (Pydantic; mux/mux4_v2 tone combs;
                       optional per-line signal-chain metadata §18)                                 (pure)
@@ -132,7 +139,7 @@ qicklab/
     sweeps.py       Sweep axis → QickSweep1D lowering (incl. tone chirps)                         (pure)
     readout.py      ReadoutKind + Discriminator PROTOCOLS + data-source abstraction:              (pure)
                       QICK-ADC IQ  OR  external trigger-synced detector (camera) — §17 finding (a)
-    program.py      QickLabProgram(AveragerProgramV2): _initialize/_body, play/play_seq, acquire; (qick)
+    program.py      StrumentoProgram(AveragerProgramV2): _initialize/_body, play/play_seq, acquire; (qick)
                       persistent/background generation + multiple detection events — §17 finding (b)
     feedback.py     feedback protocol: in-sequence branch (active_reset) OR host-in-the-loop      (pure)
     environment.py  EnvironmentSource protocol — read-only station telemetry (fridge etc., §18)   (pure)
@@ -181,7 +188,7 @@ Pulse IR is the spine: experiments never touch qick; only the compiler does.
 
 ## 4. Tenet 0 — every abstraction has an escape hatch
 
-`QickLabProgram` **subclasses** `AveragerProgramV2`; the device layer only *adds* helpers, never walls
+`StrumentoProgram` **subclasses** `AveragerProgramV2`; the device layer only *adds* helpers, never walls
 qick off. Three escape levels, always available:
 
 1. **Raw op mid-sequence** — `.raw(lambda p: p.delay_auto(0.01))` splices any qick call into a `Seq`
@@ -372,7 +379,7 @@ class Pulse:
 @dataclass
 class Delay:   duration_us: float | Sweep
 @dataclass
-class Raw:     fn: Callable[["QickLabProgram"], None]   # escape hatch element
+class Raw:     fn: Callable[["StrumentoProgram"], None]   # escape hatch element
 @dataclass
 class Segment: pulses: list[Pulse]      # pulses sharing a start (multi-line, same t)
 @dataclass
@@ -406,7 +413,7 @@ Seq = fluent builder over [Pulse | Delay | Raw | Segment | Measure]
   verified against the target qick's `maxv` convention; distinct from the signed-int16 register bound
   ±32767 used in `expt_service/gain.py` `MAX_GAIN`). A pack unit test asserts a known int code maps to
   the intended fraction. *(Supersedes the earlier int-codes-in-the-IR lean, which created a two-unit
-  world inside qicklab itself. Verify the exact v2 convention against the qick version Sho targets.)*
+  world inside strumento itself. Verify the exact v2 convention against the qick version Sho targets.)*
   - **Three input regimes, one IR unit.** The **cqed factories** take int codes (lab-native,
     converted at the boundary); the **OC / Piccolo import path (§6.5) takes physical units**
     (GHz-Rabi / rad·s⁻¹, Piccolo's native output) and calibrates **directly to fraction** via the
@@ -510,7 +517,7 @@ lossless conversion**, replacing v1's `np.load(.npz)` + hand-`interp1d` + `maxv`
 # core/pulses.py — modality-agnostic (a spin/atom pack imports its own solutions the same way)
 def from_solution(
     solution,              # Harmoniqs pulse artifact: extract_pulse output / NamedTrajectory / catalog entry
-    *, drive_map,          # named solution drive → qicklab line ('qubit'→dev.qubit, 'cavity'→dev.manipulate)
+    *, drive_map,          # named solution drive → strumento line ('qubit'→dev.qubit, 'cavity'→dev.manipulate)
     gain_calib,            # physical amplitude (GHz-Rabi / rad·s⁻¹) → v2 gain fraction, via π-pulse reference (D23)
     dac_rate,              # resample the control grid → DAC sample grid
 ) -> Seq: ...              # → Seq wrapping a Segment of normalized-ARB Pulses (one per line, same start) + provenance
@@ -573,10 +580,10 @@ toward git-native reopens once the operational reality is admitted (single share
 long-lived worker reading configs off disk, concurrent submitters — §14.2). `Device.load(...)` accepts
 a version handle regardless of which mechanism wins; §14.1 lays out the tension for circulation.
 
-## 8. `QickLabProgram` interface
+## 8. `StrumentoProgram` interface
 
 ```python
-class QickLabProgram(AveragerProgramV2):          # IS a qick v2 program
+class StrumentoProgram(AveragerProgramV2):          # IS a qick v2 program
     def __init__(self, device, seq=None, sweeps=(), reps=..., rounds=..., final_delay=...): ...
 
     def _initialize(self, cfg):
@@ -606,24 +613,24 @@ entire v1 `RAverager`/`NDAverager` register-update machinery disappears.
 ```python
 # Amplitude Rabi (1D over gain)
 amp = Sweep("amp", 0, 30000, 51)
-rabi = QickLabProgram(dev, reps=1000, sweeps=[amp],
+rabi = StrumentoProgram(dev, reps=1000, sweeps=[amp],
     seq=Seq().play(dev.qubit.ge_pi(gain=amp)).measure())
 res = rabi.acquire(soc)                           # -> MeasurementResult (see below)
 res.avgi.shape                                    # (n_ro, 51); res.xpts == amp axis
 
 # T1 (1D over an idle delay)
 t = Sweep("t", 0, 500, 101)                      # µs
-t1 = QickLabProgram(dev, reps=1000, sweeps=[t],
+t1 = StrumentoProgram(dev, reps=1000, sweeps=[t],
     seq=Seq().play(dev.qubit.ge_pi()).wait(t).measure())
 
 # Chevron (2D nested; list order = loop nesting)
 f = Sweep("freq", 3550, 3575, 51); a = Sweep("amp", 0, 30000, 51)
-res = QickLabProgram(dev, sweeps=[f, a],
+res = StrumentoProgram(dev, sweeps=[f, a],
     seq=Seq().play(dev.qubit.ge_pi(freq=f, gain=a)).measure()).acquire(soc)
 res.avgi.shape                                    # (n_ro, 51, 51)
 ```
 
-**`QickLabProgram.acquire(soc, ...)` returns a `MeasurementResult`** (§9), *not* v1's `(xpts, avgi, avgq)`
+**`StrumentoProgram.acquire(soc, ...)` returns a `MeasurementResult`** (§9), *not* v1's `(xpts, avgi, avgq)`
 tuple and not v2's raw native structure. It wraps `AveragerProgramV2.acquire`'s native return (which
 differs from v1) into the typed seam, attaching the sweep axes as `xpts`. A `.as_tuple()` convenience
 returns `(xpts, avgi, avgq)` for anyone porting v1 analysis code incrementally.
@@ -640,12 +647,12 @@ The slab `Experiment` base already exposes the right seams — `go(save, analyze
 `acquire()` / `analyze()` / `display()` / `save_data()`. That contract is **respected and kept**. The
 v1 problem is in the *implementation*: each concrete `analyze()` **inlines** `fitter.fitdecaysin(...)`
 *and prints* derived quantities, and `display()` **inlines** matplotlib — run, fit, analyze, and plot
-are conflated on one class. `qicklab` keeps the Experiment as the user-facing orchestrator but
+are conflated on one class. `strumento` keeps the Experiment as the user-facing orchestrator but
 delegates to distinct, independently-testable collaborators:
 
 ```
 Experiment (thin orchestrator; keeps go/acquire/analyze/display/save)
-  ├─ Runner    — builds QickLabProgram from device+params, acquires → MeasurementResult   (no fitting, no plotting)
+  ├─ Runner    — builds StrumentoProgram from device+params, acquires → MeasurementResult   (no fitting, no plotting)
   ├─ Analyzer  — MeasurementResult → typed FitResult via lmfit fitters                 (no plotting, no I/O)
   └─ Display   — FitResult + MeasurementResult → figure                                (no fitting, no I/O)
 ```
@@ -690,7 +697,7 @@ It does **not** inherit the 8.3 kloc fitting mess.
   1. **Structural gate (mock).** Program builds + compiles on `MockQickSocV2`; readout shapes match the
      declared sweep/readout axes; v2 validators fire on malformed programs. (Per `expt_service` §5.4.)
   2. **Numeric golden-equivalence gate (offline correctness).** For each core operation, compile the
-     v1 program and the `qicklab` program and assert the **realized physical values match**: register
+     v1 program and the `strumento` program and assert the **realized physical values match**: register
      frequencies, **DAC gain codes / v2 gain fractions**, cycle counts, and envelope samples — via
      `quantize()` / the emitted ASM. The cheap middle gate between "it builds" and "it works on the
      board," and exactly what catches the gain-units / unit-conversion class of bugs.
@@ -713,7 +720,7 @@ independently demoable.
 
 1. **Skeleton + wiring + one pulse, one readout.** Establishes the `core` / `packs/cqed` / `devices`
    split (§3, §5.1): `Device.load`, `core.channels`, a `Pulse`, compiler lowers `ge_pi` + `measure` onto
-   `QickLabProgram`, runs on `MockQickSocV2`, returns a `MeasurementResult`. *Proves the whole vertical.*
+   `StrumentoProgram`, runs on `MockQickSocV2`, returns a `MeasurementResult`. *Proves the whole vertical.*
 2. **Amplitude Rabi** — `Sweep`-as-value + `add_loop` + Rabi fitter. *Proves sweeps + fitting.*
 3. **T1 + T2 Ramsey** — swept delay, phase, `wait`. *Proves timing/phase.*
 4. **f0g1 + storage swap** — `sideband`/`coupler` namespaces, freq-gated wiring, `ds_storage`. *Proves
@@ -762,8 +769,8 @@ Only slice **7b** carries real uncertainty; 7a and everything before it do not.
   from recollection; Sho's review **confirms** the shape and the reference is his notebook
   [`meeg/qick_demos_sho` `tprocv2/00_intro.ipynb`](https://github.com/meeg/qick_demos_sho/blob/main/tprocv2/00_intro.ipynb).
   Key correction: you **subclass `AveragerProgramV2` and override `_initialize()`/`_body()`** — you do
-  *not* append declarations to a bare program object (that idiom is `QickProgramV2` only). qicklab's §8
-  `QickLabProgram(AveragerProgramV2)` already picked this pattern; doing it **in Python** sidesteps the
+  *not* append declarations to a bare program object (that idiom is `QickProgramV2` only). strumento's §8
+  `StrumentoProgram(AveragerProgramV2)` already picked this pattern; doing it **in Python** sidesteps the
   "is this doable in Julia?" problem that made the IntonatoQICK inline-assembly approach awkward (§16.4).
   Remaining concrete artifact: the **`dump_cfg()` JSON** from the target board (ask Sho) — see D25 / §10.
   The `storage_in` = `mux4_v2` generator quirk (rejects `declare_gen` without mixer/mux) must be handled
@@ -821,7 +828,7 @@ race analysis is in the session's job-server exploration; happy to attach it to 
 
 **Bearing of later decisions (added after §15 / D16):**
 - **This is now a framework-wide decision, not a multimode one.** The versioning mechanism lives in
-  `core` and versions whatever config a *pack* defines (§15); a spin/atom lab using qicklab wants the
+  `core` and versions whatever config a *pack* defines (§15); a spin/atom lab using strumento wants the
   same mechanism. Choose it for the framework, not just for Stanford.
 - **Pydantic (D16) strengthens A and C.** Canonical, typed serialization yields deterministic content
   hashes, so content-addressed dedup and diffs are robust across machines.
@@ -843,18 +850,18 @@ station config to JSON** and submits `experiment_class` / `experiment_module` **
 Exclusivity is structural (one worker, serial FIFO+priority queue, SQLite WAL) — there is no per-user
 device lock.
 
-**Hard constraints this places on `qicklab` regardless of the decision** (bake into slice 1 so the
+**Hard constraints this places on `strumento` regardless of the decision** (bake into slice 1 so the
 compatible-with path stays open):
 - Experiments must be **worker-importable by `module:class` path**.
 - Experiments must be **constructable from the serialized config blob** — no reliance on live objects
   the worker doesn't have (the worker rebuilds datasets from CSV records).
-- `QickLabProgram` must run under a **Pyro4 `soc` proxy** in the worker (not just an in-process soc/mock).
+- `StrumentoProgram` must run under a **Pyro4 `soc` proxy** in the worker (not just an in-process soc/mock).
 - Results must be **serializable** (HDF5 + picklable `MeasurementResult`).
 
 | Option | How | Trade-off |
 |---|---|---|
-| **A. Be compatible, don't reimplement** | qicklab experiments satisfy the contract above; the existing queue/worker is untouched. | Smallest; keeps multi-user working immediately; no queue rewrite. Inherits the current runner/serialization ergonomics. |
-| **B. Clean re-take on the runner** | qicklab ships a tidy submit/runner layer (re-doing `CharacterizationRunner`/`SweepRunner`) that talks to the *existing* queue. | Better ergonomics/serialization; larger surface; must stay wire-compatible with the worker. |
+| **A. Be compatible, don't reimplement** | strumento experiments satisfy the contract above; the existing queue/worker is untouched. | Smallest; keeps multi-user working immediately; no queue rewrite. Inherits the current runner/serialization ergonomics. |
+| **B. Clean re-take on the runner** | strumento ships a tidy submit/runner layer (re-doing `CharacterizationRunner`/`SweepRunner`) that talks to the *existing* queue. | Better ergonomics/serialization; larger surface; must stay wire-compatible with the worker. |
 | **C. Out of scope for now** | Direct in-process `acquire` + mock only; queue integration later. | Fastest to first light; but defers the multi-user reality the lab runs on daily. |
 
 **Recommendation:** **A** for the minimal core (keeps the lab's multi-user workflow working), with **B**
@@ -863,17 +870,17 @@ touching everyone who submits jobs).
 
 ## 15. Generality / horizontal scope (D15, D16, D20)
 
-**Ambition:** `qicklab` as a general QICK tProc-v2 framework for experimental labs — usable by
+**Ambition:** `strumento` as a general QICK tProc-v2 framework for experimental labs — usable by
 practitioners across modalities (superconducting, spin qubits, neutral-atom, sensing), not just the
 Schuster multimode device. This section records how far that reaches and the disciplined path to it.
 
 ### 15.1 Evidence the architecture already generalizes
 
 **spinQICK** (HRL Laboratories, shipped 2025-07) is an open QICK framework for *electrostatic spin
-qubits* that **independently converged on the same layering** `qicklab` designs — and it targets tProc
+qubits* that **independently converged on the same layering** `strumento` designs — and it targets tProc
 **V2** too. Module-for-module:
 
-| spinQICK (spins) | qicklab (`cqed` example) | qicklab layer |
+| spinQICK (spins) | strumento (`cqed` example) | strumento layer |
 |---|---|---|
 | `qick_code_v2/` (tProc-V2 API + asm) | `core/compiler`, `core/program` | **core** (agnostic) |
 | `Core/dot_experiment` | `Experiment` orchestrator (§9.1) | **core** |
@@ -883,7 +890,7 @@ qubits* that **independently converged on the same layering** `qicklab` designs 
 | `Core/readout_v2, psb_setup` (PSB) | pack `readout` (DispersiveIQ) | **pack (readout kind differs)** |
 | `Experiments/` (charge-stability, exchange) | pack `experiments/` (parity, dual-rail) | **modality pack** |
 
-In our terms, **spinQICK is, in effect, a shipped `spin` pack + `core`** — which is exactly why qicklab
+In our terms, **spinQICK is, in effect, a shipped `spin` pack + `core`** — which is exactly why strumento
 models its `spin` pack directly on it (§15.5), and why the pack/`core` seam is not speculative.
 
 The ecosystem already builds per-modality frameworks on the shared QICK substrate: **spinQICK** (spins),
@@ -908,7 +915,7 @@ competitive reality.
 - **Factor the `core` / `packs` / `devices` seam now** (§3, §5.1). Good design regardless — the same
   seam that makes the Schuster instance clean.
 - **Third-party packs are installable, not forkable:** pack discovery via Python **entry points**
-  (`qicklab.packs` group), so an external group — or spinQICK itself (§15.5) — can ship a pack as a
+  (`strumento.packs` group), so an external group — or spinQICK itself (§15.5) — can ship a pack as a
   separate package that `Device.load` resolves by name.
 - **Three modality packs, spanning genuinely different physics:**
   - **`cqed`** (superconducting transmon + bosonic) — **build**, Stanford (§1, §11). The Schuster
@@ -931,7 +938,7 @@ competitive reality.
 - **Incumbents + ownership.** spinQICK/QICK-DAWG/Qibosoq have users; "better core, they'll switch" is
   not a plan. A general framework is a *product* (docs, support, governance) — a Harmoniqs
   horizontal-bet decision, not a code decision.
-- **Name comity.** `qicklab` reads as quasi-official QICK; confirm the name with the QICK
+- **Name comity.** `strumento` reads as quasi-official QICK; confirm the name with the QICK
   collaboration (the Sho conversation is the natural channel). Note also KIT's `qiclib` (their
   QiController client library) — visually close, unrelated stack.
 - **Tweezers are the *hardest* pack — which is why they're valuable to build.** Optical-tweezer
@@ -960,13 +967,13 @@ pack/`core` seam with a shipped-framework reference); **built when a spin user a
   barrier) — slow ramps within the existing Sweep model; PSB is a new readout *kind* but no new `core`
   mechanism beyond the three §17 sharpenings. So `spin` mostly **exercises** the seam rather than
   extending it — which is exactly what makes it a cheap honesty check that `core` isn't SC/atom-shaped.
-- **spinQICK relationship (open):** whether qicklab's `spin` interoperates with / could re-home
+- **spinQICK relationship (open):** whether strumento's `spin` interoperates with / could re-home
   spinQICK, or stands parallel, is a partnership question (like §14.2 / §16) — not decided here.
   spinQICK is the design oracle either way.
 
 ## 16. Relationship to the Intonato/Intonatissimo calibration stack (D18)
 
-qicklab is the **open Python measurement/execution substrate at the bottom of the QILC calibration
+strumento is the **open Python measurement/execution substrate at the bottom of the QILC calibration
 stack.** It is *driven by* the calibration layers; it does not contain the calibration method.
 
 ```
@@ -974,30 +981,30 @@ Intonatissimo   PRIVATE — QILC method / ILCStrategy
   Intonato       PUBLIC — strategy-generic QILC chassis; solve!(PulseTuningProblem):
                           extract_pulse → run_experiment(::AbstractExperiment,::AbstractPulse)→Vector{Measurement}
     IntonatoQICK.jl  PUBLIC — AbstractHardwareBackend: upload_pulse! / trigger! / readout (PythonCall)
-       qicklab   OPEN — this spec: from_solution → compile → acquire → reduce
+       strumento   OPEN — this spec: from_solution → compile → acquire → reduce
           board
 ```
 
 ### 16.1 Three alignments (the design already fits)
 
-1. **`expt_service` ⊂ qicklab — unify (D18).** expt_service's 3-verb contract — `upload_pulse`
+1. **`expt_service` ⊂ strumento — unify (D18).** expt_service's 3-verb contract — `upload_pulse`
    (GHz-Rabi IQ → gain via `PiPulseReference`) / `trigger` (assemble `AveragerProgramV2` + acquire) /
    `readout` (reduce to a measurement vector; kinds `iq`/`wigner`/`tomography_1q`) — is a strict subset
-   of qicklab (`from_solution` §6.5 → compiler → `acquire` → readout-reduce). `gain.py`'s
-   `PiPulseReference` **is** qicklab's `gain_calib`. **Direction locked: the 3-verb contract becomes a
-   thin adapter/server over qicklab** (one substrate). *Execution to circulate with Sho* — it touches
+   of strumento (`from_solution` §6.5 → compiler → `acquire` → readout-reduce). `gain.py`'s
+   `PiPulseReference` **is** strumento's `gain_calib`. **Direction locked: the 3-verb contract becomes a
+   thin adapter/server over strumento** (one substrate). *Execution to circulate with Sho* — it touches
    the live IntonatoQICK collaboration.
 2. **`from_solution` (§6.5) = the QILC-iterate-on-hardware seam.** Each `solve!` iteration extracts an
    `AbstractPulse`/`NamedTrajectory` and calls `run_experiment(pulse)`. On hardware that is
-   Intonato's `HardwareExperiment(pulse -> run)` → PythonCall → qicklab
+   Intonato's `HardwareExperiment(pulse -> run)` → PythonCall → strumento
    `from_solution → compile → acquire → reduce → Vector{Measurement}`. §6.5 is not just a Piccolo
    convenience — it is the closed-loop calibration hardware path.
-3. **π-reference closure.** qicklab's *experimental* calibration (amplitude Rabi → π-gain, slice 2)
+3. **π-reference closure.** strumento's *experimental* calibration (amplitude Rabi → π-gain, slice 2)
    **produces** the `pi_gain` of the `PiPulseReference` directly (and `pi_rabi_ghz` from the known
    π-pulse's area/duration) that the physical→DAC gain conversion (§6.1) depends on. The framework
    calibrates the very reference its optimal-control import needs.
 
-### 16.2 What the QILC loop requires of qicklab
+### 16.2 What the QILC loop requires of strumento
 
 Intonato's `MeasurementModel` consumes measurement vectors keyed by knot index (`Measurement.data`,
 `.index`). Its `measurement_functions/` are **`populations`, `wigner`, `displaced_parity`,
@@ -1013,13 +1020,13 @@ from discriminated IQ, keyed by knot. Placement per §15.2 — `core/readout.py`
 
 ### 16.3 The boundary to hold (public/private)
 
-qicklab stays **strategy-agnostic**: it exposes *import-pulse / acquire / discriminate / reduce*; the
+strumento stays **strategy-agnostic**: it exposes *import-pulse / acquire / discriminate / reduce*; the
 **QILC method stays in Intonatissimo**. Same open-core split as IntonatoQICK (public interface) vs
-ILCStrategy (private method) — qicklab is the open layer the private strategy ultimately runs on. No
-ILC/QILC logic ever lands in qicklab. (This also keeps qicklab honestly general for non-Harmoniqs
+ILCStrategy (private method) — strumento is the open layer the private strategy ultimately runs on. No
+ILC/QILC logic ever lands in strumento. (This also keeps strumento honestly general for non-Harmoniqs
 practitioners, §15 — a spinQICK-style user gets the substrate without the calibration method.)
 
-### 16.4 qicklab resolves IntonatoQICK's v2 program-authoring question (Sho, PR #5)
+### 16.4 strumento resolves IntonatoQICK's v2 program-authoring question (Sho, PR #5)
 
 Sho's IntonatoQICK PR #5 review (D25) surfaced the central seam: an `AveragerProgramV2` must be
 **subclassed** (override `_initialize()`/`_body()`), so assembling one *inline from Julia* (append
@@ -1028,20 +1035,20 @@ in Julia on `QickProgramV2` — he dislikes (duplicates qick); (2) subclass `Ave
 he doubts it's doable; (3) a **Python-side program class**, parametrized by a config dict — his
 preference; (4) a new QICK-side class taking two `AsmV2` objects.
 
-**qicklab is option 3/4 done right.** `QickLabProgram(AveragerProgramV2)` (§8) *is* the Python-side
+**strumento is option 3/4 done right.** `StrumentoProgram(AveragerProgramV2)` (§8) *is* the Python-side
 subclass, but instead of losing the ability to express the sequence (his worry about option 3), the
 sequence is authored in the **`Seq` IR** (Julia/Intonato hands over a pulse/solution via `from_solution`,
 §6.5) and lowered by the compiler. So the division of labour becomes:
 
 ```
 Intonato (Julia)  → AbstractPulse / solution
-  IntonatoQICK.jl → thin backend: PythonCall → qicklab, hand over the pulse, get Measurements back
-    qicklab (Py)  → QickLabProgram(AveragerProgramV2): _initialize/_body, compile Seq, acquire, reduce
+  IntonatoQICK.jl → thin backend: PythonCall → strumento, hand over the pulse, get Measurements back
+    strumento (Py)  → StrumentoProgram(AveragerProgramV2): _initialize/_body, compile Seq, acquire, reduce
 ```
 
 IntonatoQICK's `PyQickSoc.play_program!` stops assembling `AveragerProgramV2` inline and instead
-**delegates to qicklab** — which removes exactly the awkwardness Sho flagged. This is the concrete
-execution of D18 ("expt_service/IntonatoQICK unify over qicklab") and what to socialize with Sho.
+**delegates to strumento** — which removes exactly the awkwardness Sho flagged. This is the concrete
+execution of D18 ("expt_service/IntonatoQICK unify over strumento") and what to socialize with Sho.
 
 ## 17. The `tweezer` modality pack — Thompson neutral atoms (D19)
 
@@ -1081,7 +1088,7 @@ execution of D18 ("expt_service/IntonatoQICK unify over qicklab") and what to so
   frequency polynomial + 3rd-order amplitude polynomial, single segment*. This adds **one envelope**:
   `PolyChirp(freq_poly deg 5, amp_poly deg 3)` — **registered by the tweezer pack** together with its
   lowering via the §6.1 envelope registry (D22), so core stays stock-v2 while the pack targets the
-  custom chirp DDS. It is a *compact parameterized* pulse — exactly qicklab's philosophy (like
+  custom chirp DDS. It is a *compact parameterized* pulse — exactly strumento's philosophy (like
   `Gaussian`: coefficients, not samples), and a better fit than a generic sampled `Sweep`. A
   simultaneous multi-tone move = a `Segment` of `PolyChirp`s (§6.1).
 - **Imaging is a `ReadoutKind`.** The pack supplies `ImagingReadout` (camera + frame grabber → ROI
@@ -1110,7 +1117,7 @@ Designing (a)–(c) into `core` from the start is what makes `core` honestly mod
 **Plus one firmware note.** The polynomial-chirp DDS (`PolyChirp`, §17.2) is a **Thompson custom QICK
 firmware variant**, not stock QICK. So "built with Thompson" includes targeting that firmware: the
 tweezer pack's compiler path must emit the polynomial-segment DDS commands their variant exposes (vs
-qicklab's stock-v2 assumption elsewhere). The envelope registry (D22) **confines this boundary to the
+strumento's stock-v2 assumption elsewhere). The envelope registry (D22) **confines this boundary to the
 pack**: `PolyChirp` + its lowering live in `packs/tweezer`, and core never names a shape stock v2
 cannot play. This is a real integration boundary, flagged in §17.5.
 
@@ -1125,7 +1132,7 @@ Harmoniqs optimal-control wheelhouse:
   polynomial** — solving the transport waveform against the *actual* heating objective (acoustic lensing
   + scattering) rather than a symmetry-constrained 5th-order form.
 - `from_solution` (§6.5) imports the solved chirp onto the AOD (as a `PolyChirp` or sampled `ARB`),
-  closing the loop: **Piccolissimo solves → qicklab plays on the AOD.**
+  closing the loop: **Piccolissimo solves → strumento plays on the AOD.**
 
 Concrete Harmoniqs × Thompson wedge: **replace the zero-jerk polynomial with an OC-optimized transport
 waveform**, measured against their own heating/scattering budget.
@@ -1147,7 +1154,7 @@ SLM static (88 traps) + AOD dynamic, transport heating-limited by acoustic lensi
 
 **Residual unknowns (smaller now) — a Thompson requirements pass:** the explicit **tProc version**
 (v1/v2) of their QICK variant; the **PC↔tProc command-streaming protocol**; the **custom
-polynomial-chirp DDS firmware** interface (and whether qicklab targets stock v2 + a chirp block, or
+polynomial-chirp DDS firmware** interface (and whether strumento targets stock v2 + a chirp block, or
 their firmware variant — §17.3); the rearrangement/assignment algorithm; and whether intensity
 servoing is in scope. Like the `cqed` pack (Stanford/Sho) and expt_service (§16), the tweezer pack is
 **designed here, built with the collaboration** (Thompson).
@@ -1157,7 +1164,7 @@ servoing is in scope. Like the `cqed` pack (Stanford/Sho) and expt_service (§16
 **Frame.** Experiments happen in a *station*: the SoC plus a dilution refrigerator, signal chains,
 amplifiers, and auxiliary instruments. Tenet 1 extends one rung — *model the station's read-only
 seam* — while **fridge/instrument control stays out of scope permanently** (fridge automation is the
-vendor's product; qicklab never owns heaters, valves, or magnets). The concrete driver is a
+vendor's product; strumento never owns heaters, valves, or magnets). The concrete driver is a
 Maybell-class fridge-vendor integration (compact dilution refrigerators + standardized high-density
 wiring), but every primitive below pays off with zero partnerships.
 
@@ -1166,7 +1173,7 @@ wiring), but every primitive below pays off with zero partnerships.
 1. **`EnvironmentSource` protocol** (`core/environment.py`, pure, ~20 lines):
    `snapshot() → dict[str, float | str]` of typed telemetry (stage temperatures, pressures,
    cooldown id). Implementations are adapters — a Maybell client, a Bluefors client, or a
-   **QCoDeS-instrument wrapper** (one adapter buys the whole QCoDeS driver ecosystem). qicklab ships
+   **QCoDeS-instrument wrapper** (one adapter buys the whole QCoDeS driver ecosystem). strumento ships
    the protocol + a mock; vendors/labs ship adapters.
 2. **Result stamping.** The Runner snapshots all configured sources at acquire start/end into
    `MeasurementResult.meta["environment"]` (reserved key, schema-light). This is the
@@ -1183,7 +1190,7 @@ wiring), but every primitive below pays off with zero partnerships.
 A fridge-vendor integration is then **a config profile + a thin adapter, not a fork**: the vendor's
 standardized wiring looms ship as machine-readable **fridge profiles** (a `chain:` fragment merged
 into the device-instance yaml) and their telemetry API implements `EnvironmentSource`. The joint
-story — fridge + RFSoC + qicklab as a turnkey "cold + control + experiments" reference stack —
+story — fridge + RFSoC + strumento as a turnkey "cold + control + experiments" reference stack —
 targets exactly §15's audience (new QICK labs standing up their first system). *Recorded as a design
 consideration, not a committed partnership.*
 

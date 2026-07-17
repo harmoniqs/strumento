@@ -28,7 +28,7 @@ htmlcov/
 .idea/
 .DS_Store
 
-# qicklab
+# strumento
 # committed soccfg snapshots are data (keep); local board captures are not
 *.local.json
 scratch/

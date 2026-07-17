@@ -4,17 +4,17 @@ date: 2026-07-17
 session_id: "e3dfcc03-f686-47a0-b129-29407ed941d0"
 status: draft
 spec: "./spec.md"
-tags: [plan, qicklab, cqed, core, python, qick, tproc-v2, tracer-bullet, tdd]
+tags: [plan, strumento, cqed, core, python, qick, tproc-v2, tracer-bullet, tdd]
 ---
 
-# qicklab — `core` + `cqed` pack (slices 1–6) Implementation Plan
+# strumento — `core` + `cqed` pack (slices 1–6) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: use `amico-plugin:executing-plans` to implement this
 > plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. This is a **Python** package —
 > the TDD cycle is `pytest`, not Julia.
 
 **Goal:** Build the modality-agnostic `core` and the `cqed` (superconducting transmon+bosonic) modality
-pack of `qicklab`, proving it end-to-end on the mock station across six vertical tracer-bullet slices
+pack of `strumento`, proving it end-to-end on the mock station across six vertical tracer-bullet slices
 (skeleton → amplitude Rabi → T1/T2 → f0g1/storage swap → parity → optimal-control import).
 
 **Architecture:** Approach A from the spec — a Pulse-IR + compiler design. Vertical slices: slice 1
@@ -41,7 +41,7 @@ dispatch subagents/workflows until the limit is raised.
 ## File structure (from spec §3, this plan's subset)
 
 ```
-qicklab/
+strumento/
   pyproject.toml                      # deps; qick as [project.optional-dependencies].qick
   core/
     __init__.py
@@ -55,7 +55,7 @@ qicklab/
     environment.py  EnvironmentSource protocol + mock (added Task 19, §18/D24)               (pure)
     fitters.py      lmfit fit primitives (added slices 2–3)                                  (pure)
     compiler.py     lower Seq/Pulse → AveragerProgramV2 via envelope registry; quantize()    (qick)
-    program.py      QickLabProgram(AveragerProgramV2) + acquire → MeasurementResult          (qick)
+    program.py      StrumentoProgram(AveragerProgramV2) + acquire → MeasurementResult          (qick)
     mock.py         MockQickSocV2 no-FPGA harness                                            (qick)
   packs/
     cqed/
@@ -79,10 +79,10 @@ qicklab/
 **Touches:** [pyproject.toml]
 
 **Files:**
-- Create: `pyproject.toml`, `qicklab/__init__.py`, `qicklab/core/__init__.py`, `qicklab/packs/__init__.py`, `qicklab/packs/cqed/__init__.py`, `tests/__init__.py`
+- Create: `pyproject.toml`, `strumento/__init__.py`, `strumento/core/__init__.py`, `strumento/packs/__init__.py`, `strumento/packs/cqed/__init__.py`, `tests/__init__.py`
 - Create: `docs/qick-v2-api-notes.md`
 
-- [ ] **Step 1: Write `pyproject.toml`** — package `qicklab`, `requires-python=">=3.11"`, deps
+- [ ] **Step 1: Write `pyproject.toml`** — package `strumento`, `requires-python=">=3.11"`, deps
   `pydantic>=2`, `numpy`, `scipy`, `lmfit`; `[project.optional-dependencies]` `qick = ["qick"]`,
   `test = ["pytest"]`. Configure `pytest` with markers `qick` (needs board/qick) and `pure`.
 
@@ -100,13 +100,13 @@ qicklab/
   commit it as the soccfg snapshot (spec §3/§10) — this lets Task 7–10 construct a real
   `AveragerProgramV2` offline (`QickConfig(json)`), no board. The pure tasks (1–6) proceed regardless.
 
-- [ ] **Step 3: Commit** — `git add pyproject.toml qicklab tests docs && git commit -m "chore: qicklab package skeleton + qick-v2 API notes"`
+- [ ] **Step 3: Commit** — `git add pyproject.toml strumento tests docs && git commit -m "chore: strumento package skeleton + qick-v2 API notes"`
 
 ---
 
 ## Slice 1 — Vertical skeleton (thin version of every layer)
 
-*Goal of the slice: `dev.qubit.ge_pi()` + a measure, compiled onto `QickLabProgram`, run on
+*Goal of the slice: `dev.qubit.ge_pi()` + a measure, compiled onto `StrumentoProgram`, run on
 `MockQickSocV2`, returns a `MeasurementResult` of the right shape. This forces a thin version of
 wiring, pulses, device, one library factory, compiler, program, mock, result.*
 
@@ -119,14 +119,14 @@ wiring, pulses, device, one library factory, compiler, program, mock, result.*
 > type is `ReadoutWiring` (not `Readout`) to avoid colliding with `core/readout.py`'s `ReadoutKind`
 > protocols (Task 16).
 
-**Files:** Create `qicklab/core/wiring.py`; Test `tests/core/test_wiring.py`
+**Files:** Create `strumento/core/wiring.py`; Test `tests/core/test_wiring.py`
 
 - [ ] **Step 1: Write failing tests.**
 
 ```python
 # tests/core/test_wiring.py
 import pytest
-from qicklab.core.wiring import Generator, Line, Wiring, LineRef, ReadoutWiring
+from strumento.core.wiring import Generator, Line, Wiring, LineRef, ReadoutWiring
 
 def _wiring():
     return Wiring(
@@ -178,7 +178,7 @@ def test_resolve_unknown_raises():
 
 **Depends on:** [1] · **Parallel-safe:** true · **Touches:** []
 
-**Files:** Create `qicklab/core/pulses.py`; Test `tests/core/test_pulses.py`
+**Files:** Create `strumento/core/pulses.py`; Test `tests/core/test_pulses.py`
 
 > **Envelope union (D22):** replace the flat `Shape` enum + shape-specific `Pulse` fields with a **typed
 > envelope union** — `Gaussian`/`FlatTop`/`Const`/`Arb` **frozen** dataclasses, each carrying its own
@@ -192,8 +192,8 @@ def test_resolve_unknown_raises():
   appends a `Raw`. Assert op types/order and that a frozen envelope is hashable.
 
 ```python
-from qicklab.core.pulses import Pulse, Delay, Segment, Raw, Seq, Gaussian, FlatTop, Const, Arb
-from qicklab.core.wiring import LineRef
+from strumento.core.pulses import Pulse, Delay, Segment, Raw, Seq, Gaussian, FlatTop, Const, Arb
+from strumento.core.wiring import LineRef
 
 def _p(): return Pulse(line=LineRef("qubit","drive"), freq_mhz=3562.6, gain=0.10, envelope=Gaussian(sigma_us=0.035))
 
@@ -230,7 +230,7 @@ def test_envelope_is_frozen_hashable():
 
 **Depends on:** [0] · **Parallel-safe:** true · **Touches:** []
 
-**Files:** Create `qicklab/core/result.py`; Test `tests/core/test_result.py`
+**Files:** Create `strumento/core/result.py`; Test `tests/core/test_result.py`
 
 - [ ] **Step 1–2: Failing test** — `MeasurementResult(xpts, avgi, avgq, raw=None, herald_lanes=(),
   meta={})`; `.as_tuple() == (xpts, avgi, avgq)`; `.postselect(...)` ANDs enabled herald lanes (stub:
@@ -247,7 +247,7 @@ def test_envelope_is_frozen_hashable():
 
 **Depends on:** [1] · **Parallel-safe:** true · **Touches:** []
 
-**Files:** Create `qicklab/packs/cqed/elements.py`, `qicklab/packs/cqed/calibration.py`;
+**Files:** Create `strumento/packs/cqed/elements.py`, `strumento/packs/cqed/calibration.py`;
 Test `tests/packs/cqed/test_calibration.py`
 
 - [ ] **Step 1–2: Failing tests** — `Calibration` (Pydantic) round-trips a minimal dict:
@@ -273,7 +273,7 @@ Test `tests/packs/cqed/test_calibration.py`
 
 **Depends on:** [1,4] · **Parallel-safe:** false · **Touches:** [devices/schuster_multimode/device.yaml]
 
-**Files:** Create `qicklab/core/device.py`, `devices/schuster_multimode/device.yaml`;
+**Files:** Create `strumento/core/device.py`, `devices/schuster_multimode/device.yaml`;
 Test `tests/core/test_device.py`
 
 - [ ] **Step 1: Author `devices/schuster_multimode/device.yaml`** — a **device instance**: `pack: cqed`,
@@ -285,7 +285,7 @@ Test `tests/core/test_device.py`
 
 - [ ] **Step 2: Failing test** — `Device.load("devices/schuster_multimode/device.yaml")` returns a
   `dev` whose `dev.wiring.resolve(LineRef("qubit","drive"), 3562).dac_ch == 2`, `dev.calib.qubit.f_ge`
-  is set, and `dev.soccfg_snapshot` is a plain dict (no qick import). `import qicklab.core.device` must
+  is set, and `dev.soccfg_snapshot` is a plain dict (no qick import). `import strumento.core.device` must
   not import qick.
 
 - [ ] **Step 3: Implement** `Device` (holds `wiring`, `calib`, `soccfg_snapshot: dict`, composed
@@ -298,7 +298,7 @@ Test `tests/core/test_device.py`
   The actual ops methods land in Task 6; here `load()` just wires the bindings (a stub `ops_cls` with no
   methods is fine for this task's test).
 
-- [ ] **Step 4: Assert `device.py` is qick-free** — a test that `import qicklab.core.device` succeeds
+- [ ] **Step 4: Assert `device.py` is qick-free** — a test that `import strumento.core.device` succeeds
   with `qick` uninstalled (or `sys.modules['qick']` blocked). — [ ] **Step 5: Commit** `feat(core): Device + instance load`
 
 ### Task 6: `packs/cqed/library/transmon.py` — `TransmonOps` (ge_pi/…) + per-instance binding (pure)
@@ -311,8 +311,8 @@ Test `tests/core/test_device.py`
 > accepts int codes and converts to a **v2 fraction** via `gain_int_to_frac` (Task 4) — so the returned
 > `Pulse.gain` is a fraction. **Envelope (D22):** `ge_pi` builds a `Gaussian(sigma_us=...)`.
 
-**Files:** Create `qicklab/packs/cqed/library/__init__.py`, `qicklab/packs/cqed/library/transmon.py`;
-Modify `qicklab/core/device.py` (bind ops per named element); Test `tests/packs/cqed/test_library_transmon.py`
+**Files:** Create `strumento/packs/cqed/library/__init__.py`, `strumento/packs/cqed/library/transmon.py`;
+Modify `strumento/core/device.py` (bind ops per named element); Test `tests/packs/cqed/test_library_transmon.py`
 
 - [ ] **Step 1: Failing test** — `dev.qubit.ge_pi()` returns a `Pulse` with `line==LineRef("qubit",
   "drive")`, `freq_mhz==dev.calib.qubit.f_ge`, `envelope==Gaussian(sigma_us==pi_ge.sigma)`, and
@@ -334,7 +334,7 @@ Modify `qicklab/core/device.py` (bind ops per named element); Test `tests/packs/
 
 **Depends on:** [0] · **Parallel-safe:** true · **Touches:** []  · **marker:** `qick`
 
-**Files:** Create `qicklab/core/mock.py`; Test `tests/core/test_mock.py` (marked `qick`)
+**Files:** Create `strumento/core/mock.py`; Test `tests/core/test_mock.py` (marked `qick`)
 
 > **D25 (Sho):** `MockQickSocV2` should be built around a **real `QickConfig` reconstructed from the
 > committed `dump_cfg()` JSON** (`QickConfig(json)` — no board), so the program genuinely
@@ -368,7 +368,7 @@ Modify `qicklab/core/device.py` (bind ops per named element); Test `tests/packs/
 > factory converted it, Task 6) — the compiler does **no** int→fraction step; it passes `gain` straight
 > to `add_pulse`. (`gain_int_to_frac` lives in `packs/cqed/calibration.py`, Task 4.)
 
-**Files:** Create `qicklab/core/compiler.py`; Test `tests/core/test_compiler.py` (marked `qick`)
+**Files:** Create `strumento/core/compiler.py`; Test `tests/core/test_compiler.py` (marked `qick`)
 
 - [ ] **Step 1: Failing tests.**
   - Lowering a `Seq().play(ge_pi).measure()` onto a program builds one `Gaussian` envelope + one pulse at
@@ -393,23 +393,23 @@ Modify `qicklab/core/device.py` (bind ops per named element); Test `tests/packs/
 
 - [ ] **Step 4–5: Pass + commit** `feat(core): compiler — envelope-registry lowering + dedup + quantize`
 
-### Task 9: `core/program.py` — QickLabProgram + acquire → MeasurementResult (qick)
+### Task 9: `core/program.py` — StrumentoProgram + acquire → MeasurementResult (qick)
 
 **Depends on:** [3,6,8] · **Parallel-safe:** true · **Touches:** []  · **marker:** `qick`
 
-**Files:** Create `qicklab/core/program.py`; Test `tests/core/test_program.py` (marked `qick`)
+**Files:** Create `strumento/core/program.py`; Test `tests/core/test_program.py` (marked `qick`)
 
-- [ ] **Step 1: Failing test** — `QickLabProgram(dev, seq=Seq().play(dev.qubit.ge_pi()).measure())` runs
+- [ ] **Step 1: Failing test** — `StrumentoProgram(dev, seq=Seq().play(dev.qubit.ge_pi()).measure())` runs
   `.acquire(MockQickSocV2())` and returns a `MeasurementResult` (not a tuple); `res.as_tuple()` works.
 
-- [ ] **Step 2–3: Implement** `QickLabProgram(AveragerProgramV2)`: `__init__(device, seq=None,
+- [ ] **Step 2–3: Implement** `StrumentoProgram(AveragerProgramV2)`: `__init__(device, seq=None,
   sweeps=(), reps, ...)`; `_initialize` = `_auto_declare()` (declare gens/readout + envelopes from
   seq/sweeps via wiring) + `add_loop` per sweep; `_body` = `self.play_seq(self.seq)`; helpers
   `play`/`play_seq`/`measure` delegating to `core.compiler.lower`; `acquire(soc,…)` wraps
   `AveragerProgramV2.acquire` into a `MeasurementResult` (attach sweep axes as `xpts`). Escape hatch:
   it IS an `AveragerProgramV2`.
 
-- [ ] **Step 4–5: Pass + commit** `feat(core): QickLabProgram + acquire → MeasurementResult`
+- [ ] **Step 4–5: Pass + commit** `feat(core): StrumentoProgram + acquire → MeasurementResult`
 
 ### Task 10: SLICE 1 end-to-end vertical test
 
@@ -418,7 +418,7 @@ Modify `qicklab/core/device.py` (bind ops per named element); Test `tests/packs/
 **Files:** Create `tests/e2e/test_slice1_skeleton.py`
 
 - [ ] **Step 1: Write the e2e test** — load the schuster instance; build
-  `Seq().play(dev.qubit.ge_pi()).measure()`; `QickLabProgram(dev, seq).acquire(MockQickSocV2())`; assert
+  `Seq().play(dev.qubit.ge_pi()).measure()`; `StrumentoProgram(dev, seq).acquire(MockQickSocV2())`; assert
   a `MeasurementResult` with the expected single-readout shape and that a **numeric golden** check holds
   (the realized ge_pi freq/gain-frac/cycles from `quantize` match hand-computed values from the calib).
 
@@ -434,8 +434,8 @@ Modify `qicklab/core/device.py` (bind ops per named element); Test `tests/packs/
 
 **Depends on:** [8,9,10] · **Parallel-safe:** true · **Touches:** []
 
-**Files:** Create `qicklab/core/sweeps.py`, `qicklab/core/fitters.py`,
-`qicklab/packs/cqed/experiments/amplitude_rabi.py`; Modify `qicklab/core/compiler.py`;
+**Files:** Create `strumento/core/sweeps.py`, `strumento/core/fitters.py`,
+`strumento/packs/cqed/experiments/amplitude_rabi.py`; Modify `strumento/core/compiler.py`;
 Test `tests/core/test_sweeps.py`, `tests/core/test_fitters.py` (pure),
 `tests/e2e/test_slice2_rabi.py` (`qick`)
 
@@ -470,8 +470,8 @@ Test `tests/core/test_sweeps.py`, `tests/core/test_fitters.py` (pure),
 
 **Depends on:** [11] · **Parallel-safe:** true · **Touches:** []
 
-**Files:** Modify `qicklab/core/compiler.py`, `qicklab/core/fitters.py`; Create
-`qicklab/packs/cqed/experiments/{t1,t2_ramsey}.py`; Test `tests/core/test_fitters.py` (extend),
+**Files:** Modify `strumento/core/compiler.py`, `strumento/core/fitters.py`; Create
+`strumento/packs/cqed/experiments/{t1,t2_ramsey}.py`; Test `tests/core/test_fitters.py` (extend),
 `tests/e2e/test_slice3_t1_t2.py` (`qick`)
 
 - [ ] **Step 1: Failing tests** — `Delay.duration_us` may be a `Sweep` (swept idle) and lowers to a
@@ -499,9 +499,9 @@ Test `tests/core/test_sweeps.py`, `tests/core/test_fitters.py` (pure),
 > lowering registry** (Task 8), not added as an `if`-branch. **Gain (D23):** all factories return
 > fraction `gain`.
 
-**Files:** Create `qicklab/packs/cqed/library/{sideband,mode,coupler}.py`; Modify
-`qicklab/core/compiler.py` (register `FlatTop` lowering), `qicklab/packs/cqed/calibration.py`
-(multiphoton + swap-dataset accessor); Modify `qicklab/core/device.py` (bind ops/aliases); Create
+**Files:** Create `strumento/packs/cqed/library/{sideband,mode,coupler}.py`; Modify
+`strumento/core/compiler.py` (register `FlatTop` lowering), `strumento/packs/cqed/calibration.py`
+(multiphoton + swap-dataset accessor); Modify `strumento/core/device.py` (bind ops/aliases); Create
 `devices/schuster_multimode/storage_swaps.csv`; Test `tests/packs/cqed/test_sideband_coupler.py`,
 `tests/e2e/test_slice4_f0g1_swap.py` (`qick`)
 
@@ -529,8 +529,8 @@ Test `tests/core/test_sweeps.py`, `tests/core/test_fitters.py` (pure),
 
 **Depends on:** [13] · **Parallel-safe:** true · **Touches:** []
 
-**Files:** Create `qicklab/packs/cqed/library/composite.py`; Modify `calibration.py` (revival times),
-`fitters.py` (parity contrast/phase); Create `qicklab/packs/cqed/experiments/parity.py`;
+**Files:** Create `strumento/packs/cqed/library/composite.py`; Modify `calibration.py` (revival times),
+`fitters.py` (parity contrast/phase); Create `strumento/packs/cqed/experiments/parity.py`;
 Test `tests/packs/cqed/test_parity.py`, `tests/e2e/test_slice5_parity.py` (`qick`)
 
 - [ ] **Step 1: Failing tests** — `dev.parity(mode="manipulate")` returns a `Seq` = `hpi ·
@@ -558,9 +558,9 @@ Test `tests/packs/cqed/test_parity.py`, `tests/e2e/test_slice5_parity.py` (`qick
 > (registered there, later plan); the compiler's registry (Task 8) is what makes adding it a pack-local
 > change, so no core stub is needed here.
 
-**Files:** Modify `qicklab/core/pulses.py` (`from_solution`), `qicklab/core/compiler.py` (register
-`Arb` lowering), `qicklab/packs/cqed/calibration.py` (physical→fraction π-ref), `library/composite.py`
-(`prepare`); Create `qicklab/packs/cqed/experiments/prepare_fock.py`;
+**Files:** Modify `strumento/core/pulses.py` (`from_solution`), `strumento/core/compiler.py` (register
+`Arb` lowering), `strumento/packs/cqed/calibration.py` (physical→fraction π-ref), `library/composite.py`
+(`prepare`); Create `strumento/packs/cqed/experiments/prepare_fock.py`;
 Test `tests/core/test_from_solution.py` (pure), `tests/e2e/test_slice6_oc_import.py` (`qick`)
 
 - [ ] **Step 1: Failing tests (pure where possible).**
@@ -632,7 +632,7 @@ frontier — add the file to `Touches` and/or chain `Depends on`. Left as-is for
 **Gap:** the spec's **readout-kind extension point** (§15.2, §16.2) — a spec centerpiece and the thing
 that makes `core` modality-general — had **no task**. Slice 1 only did a raw `Measure→trigger`.
 
-**Files:** Create `qicklab/core/readout.py`, `qicklab/packs/cqed/readout.py`; Modify `core/device.py`;
+**Files:** Create `strumento/core/readout.py`, `strumento/packs/cqed/readout.py`; Modify `core/device.py`;
 Test `tests/core/test_readout.py` (pure), `tests/packs/cqed/test_dispersive_iq.py` (pure)
 
 - [ ] **Step 1: Failing tests** — `core.readout` defines `ReadoutKind` + `Discriminator` **protocols**
@@ -656,10 +656,10 @@ Test `tests/core/test_readout.py` (pure), `tests/packs/cqed/test_dispersive_iq.p
 Runner/Analyzer/Display (§9.1, D13). The per-experiment modules (amplitude_rabi, t1, …) were created
 ad hoc with no shared scaffold.
 
-**Files:** Create `qicklab/core/experiment.py`; Test `tests/core/test_experiment.py`
+**Files:** Create `strumento/core/experiment.py`; Test `tests/core/test_experiment.py`
 
 - [ ] **Step 1: Failing test** — `Experiment` base exposes `go(save, analyze, display)` → `acquire()`
-  (Runner: build `QickLabProgram` + acquire → `MeasurementResult`) / `analyze()` (Analyzer: fitters →
+  (Runner: build `StrumentoProgram` + acquire → `MeasurementResult`) / `analyze()` (Analyzer: fitters →
   `FitResult`, **no plotting/printing**) / `display()` (Display: figure from result+fit). A trivial
   subclass runs end-to-end on the mock and returns a typed `FitResult` (derived quantities as fields,
   not stdout).
@@ -681,7 +681,7 @@ oracle**; the plan only tested against synthetic data.
 configurable path; skip if unavailable)
 
 - [ ] **Step 1: Failing test** — for Rabi / T1 / T2 / parity, fit the **same** data array with the new
-  `qicklab` fitter and the v1 `fitting.py` function (`fitdecaysin`/`fitexp`/…) and assert the recovered
+  `strumento` fitter and the v1 `fitting.py` function (`fitdecaysin`/`fitexp`/…) and assert the recovered
   parameters agree within tolerance. Data: recorded/synthetic arrays checked into `tests/oracle/data/`.
   *(v1 source: `.../multimode_expts/fitting/fitting.py` — provide its path via env/fixture.)*
 - [ ] **Step 2–4: FAIL → adjust fitter param conventions until they agree with the oracle → PASS.**
@@ -719,7 +719,7 @@ now means every acquire from day one *can* carry station telemetry (drift-vs-tem
 what QILC trend analysis + fleet device-modeling consume). Fridge/instrument **control stays out of
 scope** (§18.3) — this is read-only telemetry only.
 
-**Files:** Create `qicklab/core/environment.py`; Modify `qicklab/core/experiment.py` (Runner stamp);
+**Files:** Create `strumento/core/environment.py`; Modify `strumento/core/experiment.py` (Runner stamp);
 Test `tests/core/test_environment.py` (pure)
 
 - [ ] **Step 1: Failing tests** — `EnvironmentSource` is a `Protocol` with `snapshot() ->
@@ -739,10 +739,10 @@ Test `tests/core/test_environment.py` (pure)
 
 - **`Measure` op** now appears in the spec's §6.1 IR (added round 2) and in Task 2 — keep the
   `pulses.py` docstring note that it is the readout op the builder's `.measure()` emits.
-- **Public API** — define `qicklab/__init__.py` and `qicklab/core/__init__.py` exports (`Device`, `Seq`,
-  `Sweep`, `QickLabProgram`, `MockQickSocV2`, `MeasurementResult`, and the envelopes `Gaussian`/`FlatTop`
+- **Public API** — define `strumento/__init__.py` and `strumento/core/__init__.py` exports (`Device`, `Seq`,
+  `Sweep`, `StrumentoProgram`, `MockQickSocV2`, `MeasurementResult`, and the envelopes `Gaussian`/`FlatTop`
   /`Const`/`Arb`) as part of Task 10.
-- **Pack discovery via entry points** (spec §15.3) — register the `cqed` pack under a `qicklab.packs`
+- **Pack discovery via entry points** (spec §15.3) — register the `cqed` pack under a `strumento.packs`
   entry-point group so `Device.load(pack="cqed")` resolves it, and third-party packs install rather than
   fork. A one-liner in `pyproject.toml` (Task 0) + resolution in `device.load` (Task 5); fine to defer to
   a follow-on if it complicates v0.1, but the seam is cheap to reserve now.

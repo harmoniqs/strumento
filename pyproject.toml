@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "qicklab"
+name = "strumento"
 version = "0.0.0"
 description = "A first-principles QICK tProc-v2 experiment framework (device model + pulse IR + compiler + fitting)."
 readme = "README.md"
@@ -27,11 +27,11 @@ dev = ["pytest", "ruff", "mypy"]
 
 # Modality packs are discovered via this entry-point group, so third-party
 # packs install rather than fork (spec §15.3).
-[project.entry-points."qicklab.packs"]
-cqed = "qicklab.packs.cqed"
+[project.entry-points."strumento.packs"]
+cqed = "strumento.packs.cqed"
 
 [tool.hatch.build.targets.wheel]
-packages = ["qicklab"]
+packages = ["strumento"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
