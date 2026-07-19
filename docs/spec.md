@@ -11,11 +11,11 @@ linked_plan: "./plan.md"
 
 # `strumento` — a first-principles QICK tProc-v2 experiment framework (first target: the Schuster multimode device)
 
-> **Renamed 2026-07-17: `qicklab` → `strumento`.** The package is renamed to avoid claiming QICK's
+> **Renamed 2026-07-17: `strumento` → `strumento`.** The package is renamed to avoid claiming QICK's
 > namespace (it reads as quasi-official and near-collides with KIT's `qiclib`), to be OSS-safe (the
-> `strumento` PyPI name is free; `qicklab`'s vibe wasn't the issue, the brand was), and to join the
+> `strumento` PyPI name is free; `strumento`'s vibe wasn't the issue, the brand was), and to join the
 > Harmoniqs Italian-musical family — *strumento* = "instrument" (QICK is the **Instrument**ation Control
-> Kit; strumento is the instrument on top). The vault filename keeps `qicklab` as a stable historical id;
+> Kit; strumento is the instrument on top). The vault filename keeps `strumento` as a stable historical id;
 > the GitHub repo and Python package are `strumento`.
 
 > **What this is.** A design-of-record for a **fresh, standalone Python package**, `strumento` — a
@@ -724,7 +724,7 @@ Each slice is end-to-end (device → factory → Seq → compile → mock-acquir
 independently demoable.
 
 1. **Skeleton + wiring + one pulse, one readout.** Establishes the `core` / `packs/cqed` / `devices`
-   split (§3, §5.1): `Device.load`, `core.channels`, a `Pulse`, compiler lowers `ge_pi` + `measure` onto
+   split (§3, §5.1): `Device.load`, `core.wiring`, a `Pulse`, compiler lowers `ge_pi` + `measure` onto
    `StrumentoProgram`, runs on `MockQickSocV2`, returns a `MeasurementResult`. *Proves the whole vertical.*
 2. **Amplitude Rabi** — `Sweep`-as-value + `add_loop` + Rabi fitter. *Proves sweeps + fitting.*
 3. **T1 + T2 Ramsey** — swept delay, phase, `wait`. *Proves timing/phase.*
@@ -861,6 +861,8 @@ compatible-with path stays open):
 - Experiments must be **constructable from the serialized config blob** — no reliance on live objects
   the worker doesn't have (the worker rebuilds datasets from CSV records).
 - `StrumentoProgram` must run under a **Pyro4 `soc` proxy** in the worker (not just an in-process soc/mock).
+  *(Being reconsidered — the collaboration proposes dropping Pyro; see §14.2.1. The general form is "runs
+  under the job server's `soc` transport"; Pyro is one implementation.)*
 - Results must be **serializable** (HDF5 + picklable `MeasurementResult`).
 
 | Option | How | Trade-off |
@@ -872,6 +874,43 @@ compatible-with path stays open):
 **Recommendation:** **A** for the minimal core (keeps the lab's multi-user workflow working), with **B**
 as a natural follow-on once the core is proven. **Aaron to circulate** (this is a shared-infra decision
 touching everyone who submits jobs).
+
+#### 14.2.1 Emerging direction (2026-07-19): job-server-native execution, drop Pyro
+
+The QICK collaboration (Connie & Guan with Dave, cc Sho) is rethinking the instrument-manager layer, and
+the direction reshapes this decision. Today the board runs a **QICK instrument server that selects a
+firmware overlay and hosts a Pyro4 proxy** the measurement PC talks to. The proposal: **since a job
+server exists anyway, eliminate the Pyro layer entirely**, and additionally allow the **firmware to be
+reprogrammed per job/user**.
+
+- **The enabler is D25's `dump_cfg()`.** Pyro exists to proxy a *live `QickSoc`* for fine-grained remote
+  method calls. But once `dump_cfg()` → `QickConfig(json)` lets the whole **build + compile** of the
+  `AveragerProgramV2` happen off-board, the only board-side operation left is **coarse**: *load compiled
+  program → run → return ADC buffers*. That is a job submission, not an object proxy — Pyro is the wrong
+  tool for it (and Pyro4 is EOL and version-couples the board's and PC's qick installs).
+- **Two clean topologies, both Pyro-free.** (i) **Worker-on-board** — run the job-server worker on the
+  board's ARM against a *local* `QickSoc` (no proxy, no nameserver); the PC only hits the job API. (ii)
+  **Compile-off-board + thin execute-agent** — compile/analyze/fit on a fast machine (D25 makes this
+  possible), ship compiled artifacts to a minimal board agent that loads+runs+reads. (ii) is preferable
+  where the weak ARM should do as little as possible.
+- **Firmware-on-the-fly = select among pre-built overlays, not synthesize gateware.** FPGA synthesis is
+  hours-long/offline, so the achievable form is a **library of pre-synthesized overlay bitstreams** on the
+  board, with "download overlay X" as a serialized **job step** (PYNQ `Overlay.download()`, ~seconds,
+  resets the tProc; needs exclusive access — which the single-worker queue already serializes). **Each
+  overlay has its own `dump_cfg()` JSON**, so a firmware personality is exactly one **soccfg snapshot**
+  (§3, D25) — a clean 1:1 with strumento's per-instance snapshot model.
+- **Keep an interactive escape hatch (Tenet 0).** The one thing Pyro gives that a coarse contract does
+  not is live exploratory poking of the board from the PC; the job contract should carry a raw
+  board-side-exec / debug verb (or those users keep an on-board notebook), mirroring §4.
+
+**Bearing on the decision.** The hard constraint above ("`StrumentoProgram` must run under a **Pyro4**
+`soc` proxy") **softens to "under whatever transport the job server uses."** Because strumento already abstracts
+the board behind a small soc protocol (`MockQickSocV2` / `PyQickSoc` / `SimulatorSoc`, §19.3), **dropping
+Pyro is swapping one transport implementation — nothing above it changes.** This is a shared cleanup: it
+also retires the Pyro4 leg in `expt_service` (§16.1). **Refined recommendation:** stay Option-A-compatible
+for the minimal core (don't block on the redesign), but **target job-server-native / no-Pyro** as the
+end state and add a `JobServerSoc` transport (Option B, follow-on) rather than hard-wiring a Pyro proxy.
+*(This subsection informs the §14.2 circulation; still Aaron-to-circulate with the collaboration.)*
 
 ## 15. Generality / horizontal scope (D15, D16, D20)
 
@@ -890,7 +929,7 @@ qubits* that **independently converged on the same layering** `strumento` design
 | `qick_code_v2/` (tProc-V2 API + asm) | `core/compiler`, `core/program` | **core** (agnostic) |
 | `Core/dot_experiment` | `Experiment` orchestrator (§9.1) | **core** |
 | `helper_function/analysis`, `plot_tools` | `core/fitters` + Display (§9) | **core** |
-| `Models/` (**Pydantic** config) | `core/channels`, `core/device` + pack calib | **core schema + pack contents** |
+| `Models/` (**Pydantic** config) | `core/wiring`, `core/device` + pack calib | **core schema + pack contents** |
 | `Core/awg_pulses, eo_pulses, ld_pulses` | pack `library/` | **modality pack** |
 | `Core/readout_v2, psb_setup` (PSB) | pack `readout` (DispersiveIQ) | **pack (readout kind differs)** |
 | `Experiments/` (charge-stability, exchange) | pack `experiments/` (parity, dual-rail) | **modality pack** |
