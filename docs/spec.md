@@ -86,10 +86,10 @@ Its own TODO reads *"Migrate to tProcv2 at some point."* The stack today is four
 ## 2. Locked decisions (from the design session)
 
 *IDs reflect chronological order; D13/D14 are listed next to their thematically-adjacent decisions
-(D4, D9), so the table is grouped rather than strictly numeric. All of D1–D29 are present. D9 is
+(D4, D9), so the table is grouped rather than strictly numeric. All of D1–D31 are present. D9 is
 **open** (§14.1); D14 is **resolved** (§14.2, landed 2026-07-21); D18's expt_service **execution** circulates (§16); the rest are locked. D21–D24 were
 added in the naming/extensibility/elegance/station review round (2026-07-17); D25 folds in the qick-v2
-API review; D26–D29 add the codesign-enablement dimension (§19).*
+API review; D26–D29 add the codesign-enablement dimension (§19); D30 adds the `DeviceBuilder` authoring seam (§5.3, landed 2026-07-21); D31 adds typed-edge couplings + the device-model → Hamiltonian export seam (§5.3 / §6.6, landed 2026-07-21).*
 
 | # | Question | Decision |
 |---|---|---|
@@ -122,6 +122,8 @@ API review; D26–D29 add the codesign-enablement dimension (§19).*
 | D27 | Board-description → `Wiring` (Layer 3, §19) | A neutral, typed **board-description schema** (Pydantic: channel roles + generator→DAC/ADC bindings + RF-periphery annotations feeding the §18 `SignalChain`) and a `Wiring.from_board_description(desc)` builder. Extends single-source-of-truth (§5, §7) *down to the physical board*: the board description is the wiring config's upstream source; a vendor netlist export is **one adapter/producer**, never a coupling. |
 | D28 | Transfer-function-aware compilation (§19) | The board/line is a **linear filter** between DAC and qubit; in-band linear distortion is **pre-compensable in software**. The `SignalChain` (§18) carries a per-line transfer function **H(ω)** (measured via characterization, or modeled from the board description) + inter-line **crosstalk**; the `from_solution` import boundary (§6.5) gains an optional **pre-distortion stage** (regularized deconvolution with out-of-band / DAC-clip guards) so H·ũ ≈ u at the device. Sits alongside the resample + physical→fraction gain-calib the boundary already owns. |
 | D29 | Simulator soc backend (§19) | A **`SimulatorSoc`** implementing the same soc protocol as `MockQickSocV2` / `PyQickSoc`, running a `Device` + `Seq` against a physics simulation, so a **design-time `Device`** (`source: design`) is exercisable *before it is fabricated*. The two ends of the codesign loop — simulation (design-time) and board (as-built) — share one `acquire` interface; the same experiment/fitters run against both. Design-for-extension seam (deferred build). |
+| D30 | Device authoring — builder vs config (§5.3) | **Config-as-data stays canonical; add a `DeviceBuilder` (config-as-code) that PRODUCES it, never replaces it (landed 2026-07-21).** A pure, **pack-agnostic** builder in `core` composes a device from the *loaded pack's registered element types* — `add(type, name)` / `coupling` / `wire` / `readout` — with construction-time topology validation; `build()` emits the canonical Pydantic `Device`/`Wiring`, and `Device ⇄ YAML/JSON ⇄ builder` all yield the identical model (three equal authoring surfaces, one source of truth). Motivated by DRY (the 7 storage modes = a loop), programmatic / design-time generation (D29 `source: design`), and early validation — without forking single-source-of-truth (D10) or the pack/instance boundary (D20). Same *"producer of canonical data"* shape as `from_board_description` (D27) / `from_solution` (§6.5); packs may ship domain builder sugar (parametric sub-assemblies + connectivity patterns) as plain functions over the builder, so a new modality gets authoring for free. **Carve-out: calibration *values* are never authored in code** — they change every run (written by the calibration loop / `DeviceModelReport`, D26) and stay data, passed to `build(calib=…)`; the builder composes topology + wiring only. |
+| D31 | Typed-edge couplings + Hamiltonian export (§5.3, §6.6) | **Couplings are first-class typed edges, and the device model exports a Hamiltonian for Piccolo (landed 2026-07-21).** (a) A coupling = `coupling(a, b, form, mediated_by=…)`: an operator **form** (pack-registered union à la D22 — `Dispersive` / `ZZ` / `Exchange` / `BeamSplitter` / `JaynesCummings`; `spin` → `HeisenbergExchange`), endpoints, an optional mediating driven element, strength from calib (D30 carve-out). The form carries symmetry + an **operator template**; the physical *coupler element* (`add("Coupler", …)`, has a DAC) is separate from the *interaction*; patterns (`ring_couple`, `grid_nn`) are functions emitting typed edges. (b) Because forms carry operator templates and element types carry bare-Hamiltonian templates, `dev.to_operator_model(frame, cutoffs, include=…)` lowers topology + couplings + calib → a **framework-neutral** operator spec (drift $H_0$ + drive ops $\{H_k\}$ + basis + `drive_map` + provenance); `include=` extracts a **subgraph** for tractability. A thin **upstream** `to_piccolo_system(model)` bridge builds the Piccolo `QuantumSystem` (strumento `core` stays Piccolo-free; the neutral middle also serves QuTiP). This is the **mirror of `from_solution` (§6.5)** — model-out ↔ pulse-in — closing the codesign loop (D26 `DeviceModelReport` refines the model → next solve). §19.4 boundary preserved: strumento owns the *export*, the *solve* stays upstream. Required inputs (not derivable): frame, Fock cutoffs, computational-subspace / target. |
 
 ## 3. Package architecture (Approach A)
 
@@ -152,6 +154,7 @@ strumento/
     result.py       MeasurementResult typed seam                                                  (pure)
     fitters.py      generic lmfit fit primitives (decaying sinusoid, exponential, …)              (pure)
     device.py       Device (topology of elements) + load(): compose pack elements + wiring + calib (pure*)
+    builder.py      DeviceBuilder: config-as-code that PRODUCES the canonical Device/Wiring (§5.3, D30)  (pure)
     mock.py         MockQickSocV2 no-FPGA harness (+ mock external detector)                       (qick)
   packs/                      ── modality kits: element TYPES + libraries + readout kind + calib SCHEMA ──
     cqed/                     ─── superconducting (transmon + bosonic) — build, Stanford ───
@@ -347,6 +350,91 @@ Consequences:
 
 A `Pulse` targets a `(line, generator-role)` — resolved to a DAC by the wiring at compile — never a
 bare integer.
+
+### 5.3 Authoring a device instance — the `DeviceBuilder` (config-as-code, D30)
+
+A device instance (§5.1) is **canonically data** — the serialized Pydantic `Device`/`Wiring` is what the
+job server ships (§14.2), what versioning tracks (§14.1), and what the codesign loop diffs (§19). But
+hand-writing YAML is repetitive (the Schuster instance alone is 7 storage modes) and forecloses
+programmatic and design-time generation (`SimulatorSoc`, D29). So `core/builder.py` adds a **pure,
+pack-agnostic `DeviceBuilder` that *produces* the canonical model — never a parallel state store.** Three
+authoring surfaces, one source of truth, freely interconvertible:
+
+```
+Device (Pydantic)   ⇄   YAML/JSON   ⇄   DeviceBuilder
+```
+
+`Device.from_yaml(...)`, a hand-built Pydantic `Device`, and `DeviceBuilder(...).build()` all yield the
+**identical** `Device`; `dev.to_yaml()` writes it back. The builder is the same *"producer of canonical
+data"* shape the design already uses for `Wiring.from_board_description` (D27) and `from_solution` (§6.5)
+— code that lowers into the data model, so **single-source-of-truth (D10) is preserved**: `build()`'s
+output (committed, or deterministically re-emitted from the same inputs) is the one authority.
+
+**Pack-agnostic by construction — this is the extensibility.** The builder never names `Transmon` or any
+modality type; it composes over the **loaded pack's registered element types** (§5.1; entry-point
+discovery, §15.3). So `spin` / `tweezer` — and any third-party pack — get device authoring **for free**,
+with no `core` change:
+
+```python
+b = DeviceBuilder(pack="cqed")             # element types resolved from the pack registry
+b.add("Transmon", "qubit")
+b.add("BosonicMode", "manipulate")
+for i in range(1, 8):
+    b.add("BosonicMode", f"storage{i}")    # the loop YAML cannot express
+b.add("Coupler", "coupler")                            # the physical, driven coupler element (has a DAC)
+b.coupling("manipulate", "storage3", form=BeamSplitter, mediated_by="coupler")   # a TYPED edge (below)
+b.wire("qubit", drive=Generator(dac_ch=2), sideband=Generator(dac_ch=0))
+b.readout(dac_ch=5, adc_chs=[0], mux_freqs=[...])
+dev = b.build(calib="devices/schuster_multimode/calib.yml")   # topology+wiring from code; calib from DATA
+dev.to_yaml("devices/schuster_multimode/")                    # data remains canonical
+```
+
+**Couplings are typed edges — not just "there's a coupler here" (D31).** A physical coupler with its own
+drive is an *element* you `add` (`dev.coupler.swap()` still works); an *interaction* is a separate,
+first-class **typed edge** — `coupling(a, b, form=…, mediated_by=…)` — carrying an operator **form**, its
+endpoints, an optional mediating element, and (from calib) a strength. **Coupling forms are a
+pack-registered union**, exactly the D22 envelope pattern applied to interactions: `cqed` registers
+`Dispersive` / `ZZ` / `Exchange` / `BeamSplitter` / `JaynesCummings`, `spin` registers `HeisenbergExchange`,
+a new pack adds its own with **no `core` change**. The form carries its **symmetry** (`BeamSplitter` / `ZZ`
+symmetric; `CrossResonance` directional, control→target) and — crucially — its **operator template**, which
+is what makes the model Hamiltonian-extractable (§6.6). Strengths ($g$, $\chi$, $J$) are calibration
+*values* → data (the D30 carve-out), never in the edge declaration. `mediated_by` ties the edge to a driven
+element (same physics as `dev.<coupler>.swap()`); omit it for an always-on direct coupling.
+
+**Composition algebra — elegance via plain Python.** Parametric sub-assemblies and connectivity patterns
+are just functions over the builder, so complex topologies compose from small reusable pieces instead of a
+monolithic schema:
+
+```python
+def transmon_unit(b, name, *, drive_dac, ro_lane):   # a reusable unit
+    b.add("Transmon", name)
+    b.wire(name, drive=Generator(dac_ch=drive_dac))
+    b.readout_lane(name, lane=ro_lane)
+
+b = DeviceBuilder(pack="cqed")
+for i in range(4):
+    transmon_unit(b, f"q{i}", drive_dac=i, ro_lane=i)
+ring_couple(b, [f"q{i}" for i in range(4)], form=ZZ)   # a pattern → emits typed edges
+dev = b.build(calib="devices/ring4/calib.yml")
+```
+
+A pack **may ship domain builder sugar** (`transmon_unit`, `aod_axis`, …) as ordinary functions over the
+builder — discovered like the rest of the pack — so patterns live in the pack / userland, not `core`.
+
+**Validation layers, and the naming → namespace tie.** Pydantic validates the *data* (field types,
+required fields); the builder adds *construction-time topology* checks with early, specific diagnostics
+(`coupling` rejects an unknown endpoint or missing mediator; `readout` requires ≥1 target; a `wire` role must exist on that
+element). The `name` you `add` is exactly what binds the `dev.<name>` namespace (D21), so the builder
+literally authors the topology D21 consumes.
+
+**Carve-out — calibration values are never authored in code.** The builder composes **topology + wiring
+only**; calibration *values* change every run (written by the calibration loop / `DeviceModelReport`, D26)
+and stay **data**, passed to `build(calib=…)` as a file. This keeps the one place a device mutates most in
+the diffable, versioned form and prevents a split-brain source of truth.
+
+**Escape hatch (Tenet 0).** The builder is optional at every level: hand-write the YAML, or construct the
+Pydantic `Device` directly, or use the builder and then hand-edit the emitted data. No path is privileged
+over the canonical model.
 
 ## 6. The pulse layer
 
@@ -549,6 +637,51 @@ naming, + `Segment`/simultaneity. **Deferred:** **catalog auto-retrieval** — `
 looking the solved pulse up in the armonissima catalog by *(device system, target)* and importing it
 automatically. That closes the full Piccolo×QICK loop but belongs partly in the catalog layer; land it
 once the import boundary is proven.
+
+### 6.6 Device-model → Hamiltonian export (D31) — the Piccolo *input* seam (mirror of §6.5)
+
+§6.5 imports a solved pulse *onto* the device; this is the **other direction** — the device model *exports
+the Hamiltonian* a solver optimizes against. Once couplings carry operator forms (§5.3) and element types
+carry bare-Hamiltonian templates, the topology graph + calibrated values **are** a Hamiltonian spec:
+
+$$H(t) \;=\; \sum_i H_i^{\text{elem}} \;+\; \sum_{\langle i,j\rangle} H_{ij}^{\text{coupling}} \;+\; \sum_k H_k^{\text{drive}}\,u_k(t)$$
+
+- $H_i^{\text{elem}}$ — the element *type*'s operator template, filled by calibrated params (`Transmon` →
+  Duffing $\omega\,a^\dagger a + \tfrac{\alpha}{2}\,a^\dagger a^\dagger a a$; `BosonicMode` → $\omega\,b^\dagger b$,
+  + optional self-Kerr).
+- $H_{ij}^{\text{coupling}}$ — each typed edge's **form → operator**, scaled by its calibrated strength.
+- $H_k^{\text{drive}}$ — from the **wiring**: each line/generator → the element + operator it drives (qubit
+  drive → $a + a^\dagger$; the `sideband` generator → the $f_0g_1$ coupling operator). The $u_k(t)$ are
+  exactly the controls Piccolo optimizes.
+
+```python
+# core — pure, framework-NEUTRAL, no qick, no Piccolo import
+def to_operator_model(dev, *, frame="rotating", cutoffs, include=None) -> OperatorModel: ...
+#   OperatorModel = drift H0 (sparse) + drives {line → H_k} + basis labels + drive_map + provenance
+```
+
+- **Subgraph extraction (`include=`) is the point.** The topology is a graph, so
+  `include=["qubit","manipulate"]` pulls just the $f_0g_1$ subsystem instead of the full 9-mode Hilbert
+  space — the line between a tractable and an impossible Piccolo solve. The Fock truncation also *defines*
+  the computational subspace of the gate target (ties `EmbeddedOperator` / Pedersen fidelity).
+- **Framework-neutral middle, upstream bridge.** `to_operator_model` emits a neutral spec (sparse operators
+  + labels); a thin **`to_piccolo_system(model)`** adapter — living **upstream**, not in strumento `core` —
+  builds the Piccolo `QuantumSystem`. This keeps `core` Piccolo-free and lets QuTiP (or any other consumer)
+  use the same spec. Per §19.4, strumento owns the *export*; the *solve* stays upstream.
+- **The loop closes coherently.** The same `drive_map` the model emits feeds `from_solution` (§6.5) on the
+  way back, so labels round-trip:
+
+  $$\texttt{to\_operator\_model} \to \text{Piccolo solve} \to \texttt{extract\_pulse}
+  \xrightarrow{\text{drive\_map}} \texttt{from\_solution} \to \text{device} \to \text{measure}
+  \to \texttt{DeviceModelReport (D26)} \to \text{refine model}$$
+
+  so the *measured* device continuously sharpens the very Hamiltonian the next solve uses.
+- **Required inputs (not derivable, hence arguments):** the **frame** per element (the model stores
+  lab-frame freqs), **Fock cutoffs** per bosonic mode, and the **computational-subspace / target** definition.
+
+**Sequencing.** The operator-template contract on element types + coupling forms is cheap and lands with the
+pack; `to_operator_model` + the Piccolo bridge are a natural follow-on once the `cqed` templates exist
+(candidate alongside the §19 codesign slice — not on the 1–6 critical path).
 
 ## 7. Config: single source of truth (versioning mechanism is §14.1)
 
