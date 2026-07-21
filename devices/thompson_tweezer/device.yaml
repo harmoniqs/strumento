@@ -1,0 +1,33 @@
+# Thompson neutral-atom tweezer instance (tweezer pack) — SKELETON.
+#
+# QICK controls the dynamic AOD tweezers (two mux axes, up to 32 tones each); the SLM static array
+# is not FPGA-driven. Numbers here are placeholders for the skeleton — real AOD calibration and the
+# move library land when the tweezer pulse layer is built.
+
+pack: tweezer
+
+wiring:
+  lines:
+    aod_x:
+      name: aod_x
+      generators:
+        - {role: mux, dac_ch: 0, nyquist: 1, gen_type: mux}
+    aod_y:
+      name: aod_y
+      generators:
+        - {role: mux, dac_ch: 1, nyquist: 1, gen_type: mux}
+  # detection is a camera + PC frame grabber (external detector), not a readout DAC/ADC; this
+  # nominal block satisfies the wiring schema until the imaging path is modeled.
+  readout:
+    dac_ch: 0
+    adc_chs: []
+
+topology:
+  - {type: AODAxis, name: aod_x, axis: x}
+  - {type: AODAxis, name: aod_y, axis: y}
+  - {type: AtomArray, name: array, n_traps: 88}
+
+calibration:
+  aod_x: {center_mhz: 100.0, span_mhz: 20.0}
+  aod_y: {center_mhz: 100.0, span_mhz: 20.0}
+  trap_depth_mk: 1.0

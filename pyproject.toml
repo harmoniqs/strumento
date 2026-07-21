@@ -29,6 +29,8 @@ dev = ["pytest", "ruff", "mypy"]
 # packs install rather than fork (spec §15.3).
 [project.entry-points."strumento.packs"]
 cqed = "strumento.packs.cqed"
+tweezer = "strumento.packs.tweezer"
+spin = "strumento.packs.spin"
 
 [tool.hatch.build.targets.wheel]
 packages = ["strumento"]
