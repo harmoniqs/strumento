@@ -32,3 +32,7 @@ htmlcov/
 # committed soccfg snapshots are data (keep); local board captures are not
 *.local.json
 scratch/
+
+# Local reference material — vendored copy of the public SchusterLab/multimode_expts
+# v1 checkout (calib/mock/fitting sources for Tasks 4/5/7/18). Re-cloneable; never committed.
+.refs-v1/
