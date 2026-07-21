@@ -16,6 +16,12 @@ class RecordingProgram:
     def delay(self, t, **kw):               self.calls.append(("delay", t))
     def trigger(self, ros=None, t=0, **kw): self.calls.append(("trigger", tuple(ros or ()), t))
     def declare_readout(self, ch, length, **kw): self.calls.append(("declare_readout", ch, length))
+    def add_loop(self, name, count, **kw):  self.calls.append(("add_loop", name, count))
+
+    def sweep_value(self, name, start, stop):
+        # the real program returns a qick QickSweep1D; the fake returns a recordable marker
+        self.calls.append(("sweep_value", name, start, stop))
+        return {"__sweep__": name, "start": start, "stop": stop}
 
     def kinds(self):
         return [c[0] for c in self.calls]

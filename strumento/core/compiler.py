@@ -35,6 +35,7 @@ from strumento.core.pulses import (
     Segment,
     Seq,
 )
+from strumento.core.sweeps import Sweep
 from strumento.core.wiring import Wiring
 
 #: default readout window (µs) when the instance/Measure supplies none (refined in Task 16).
@@ -114,18 +115,24 @@ class Compiler:
         self._env_names: dict[tuple[int, object], str] = {}
         self._pulse_names: dict[tuple, str] = {}
         self._declared_ros: set[int] = set()
+        self._declared_loops: set[str] = set()
 
     # -- declaration pass --------------------------------------------------------------
 
     def declare(self, seq: Seq) -> None:
         pulses = list(self._all_pulses(seq))
 
+        # loops first: one add_loop per unique swept-field name (a sweep_value refers to it)
+        for sw in self._sweeps_in(seq):
+            if sw.name not in self._declared_loops:
+                self.program.add_loop(sw.name, sw.points)
+                self._declared_loops.add(sw.name)
+
         for p in pulses:
-            ch = self._gen_ch(p)
-            if ch not in self._declared_gens:
-                gen = self.wiring.resolve(p.line, p.freq_mhz)
-                self.program.declare_gen(ch=ch, nqz=gen.nyquist)
-                self._declared_gens.add(ch)
+            gen = self._gen(p)
+            if gen.dac_ch not in self._declared_gens:
+                self.program.declare_gen(ch=gen.dac_ch, nqz=gen.nyquist)
+                self._declared_gens.add(gen.dac_ch)
 
         for p in pulses:
             ch = self._gen_ch(p)
@@ -143,7 +150,8 @@ class Compiler:
                 self.program.add_pulse(
                     ch=ch, name=name, style="arb",
                     envelope=self._env_names[(ch, p.envelope)],
-                    freq=p.freq_mhz, phase=p.phase_deg, gain=p.gain,
+                    freq=self._field_value(p.freq_mhz), phase=p.phase_deg,
+                    gain=self._field_value(p.gain),
                 )
                 self._pulse_names[pkey] = name
 
@@ -163,7 +171,7 @@ class Compiler:
             if isinstance(op, Pulse):
                 self._play_pulse(op)
             elif isinstance(op, Delay):
-                self.program.delay(op.duration_us)
+                self.program.delay(self._field_value(op.duration_us))
             elif isinstance(op, Raw):
                 op.fn(self.program)
             elif isinstance(op, Segment):
@@ -182,8 +190,38 @@ class Compiler:
         name = self._pulse_names[self._pulse_key(p, ch)]
         self.program.pulse(ch=ch, name=name, t=(p.start_us or 0.0))
 
+    def _gen(self, p: Pulse):
+        """Resolve the generator for a pulse, handling a swept frequency.
+
+        A frequency sweep must stay within one generator's band — resolving both endpoints to
+        different generators is a band-boundary crossing a single ``QickSweep1D`` can't express.
+        """
+        freq = p.freq_mhz
+        if isinstance(freq, Sweep):
+            g_lo = self.wiring.resolve(p.line, freq.start)
+            g_hi = self.wiring.resolve(p.line, freq.stop)
+            if g_lo != g_hi:
+                raise ValueError(
+                    f"frequency sweep {freq.name!r} on {p.line.line}.{p.line.role} spans a band "
+                    f"boundary: {freq.start} MHz and {freq.stop} MHz resolve to different "
+                    f"generators (a single generator must cover the whole sweep)"
+                )
+            return g_lo
+        return self.wiring.resolve(p.line, freq)
+
     def _gen_ch(self, p: Pulse) -> int:
-        return self.wiring.resolve(p.line, p.freq_mhz).dac_ch
+        return self._gen(p).dac_ch
+
+    def _field_value(self, value):
+        """Resolve a possibly-swept field to what ``add_pulse``/``delay`` should receive.
+
+        A :class:`Sweep` becomes the program's sweep handle (``sweep_value`` returns a
+        ``QickSweep1D`` on the real program); a scalar passes through unchanged. Keeping the
+        qick sweep object behind ``program.sweep_value`` is what keeps this module qick-free.
+        """
+        if isinstance(value, Sweep):
+            return self.program.sweep_value(value.name, value.start, value.stop)
+        return value
 
     @staticmethod
     def _pulse_key(p: Pulse, ch: int) -> tuple:
@@ -196,6 +234,20 @@ class Compiler:
                 yield op
             elif isinstance(op, Segment):
                 yield from op.pulses
+
+    @staticmethod
+    def _sweeps_in(seq: Seq) -> list[Sweep]:
+        """Unique (by name) sweeps across pulse gain/freq and delay-duration fields."""
+        found: dict[str, Sweep] = {}
+        for op in seq.ops:
+            pulses = op.pulses if isinstance(op, Segment) else ([op] if isinstance(op, Pulse) else [])
+            for p in pulses:
+                for v in (p.gain, p.freq_mhz):
+                    if isinstance(v, Sweep):
+                        found.setdefault(v.name, v)
+            if isinstance(op, Delay) and isinstance(op.duration_us, Sweep):
+                found.setdefault(op.duration_us.name, op.duration_us)
+        return list(found.values())
 
 
 # --------------------------------------------------------------------------------------
