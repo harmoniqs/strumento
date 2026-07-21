@@ -66,9 +66,9 @@ class StrumentoProgram(AveragerProgramV2):
         super().__init__(soccfg, reps=reps, final_delay=final_delay, **kwargs)
 
     def _initialize(self, cfg):
+        # the compiler discovers sweeps in the sequence and registers their add_loop (a swept
+        # pulse field carries its own Sweep), so we don't double-register self.sweeps here.
         self._compiler = Compiler(self, self.device.wiring, self.soccfg)
-        for sw in self.sweeps:
-            self.add_loop(sw.name, sw.points)
         self._compiler.declare(self.seq)
 
     def _body(self, cfg):
@@ -79,8 +79,10 @@ class StrumentoProgram(AveragerProgramV2):
         return _to_measurement_result(raw, xpts=self._xpts())
 
     def _xpts(self):
-        """The lab-native swept axis for the (single, slice-1) sweep, or ``None``."""
-        if not self.sweeps:
-            return None
-        sw = self.sweeps[0]
-        return np.linspace(sw.start, sw.stop, sw.points)
+        """The lab-native swept axis, from the explicit ``sweeps=`` or discovered in the seq.
+
+        A factory-built swept pulse carries a :class:`Sweep` whose ``xpts`` is the lab-native
+        axis (D23); we surface the first sweep's axis as the result's ``xpts``.
+        """
+        sweeps = list(self.sweeps) or Compiler._sweeps_in(self.seq)
+        return sweeps[0].xpts if sweeps else None

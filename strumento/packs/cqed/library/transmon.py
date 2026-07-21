@@ -17,6 +17,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from strumento.core.pulses import FlatTop, Gaussian, Pulse
+from strumento.core.sweeps import Sweep
 from strumento.core.wiring import LineRef
 from strumento.packs.cqed.calibration import gain_int_to_frac
 
@@ -58,7 +59,18 @@ class TransmonOps:
         pc = qc.pulses[pulse_key]
 
         freq_mhz = freq if freq is not None else getattr(qc, freq_field)
-        gain_frac = gain if gain is not None else gain_int_to_frac(pc.gain, self._maxv(freq_mhz))
+        freq_scalar = freq_mhz.start if isinstance(freq_mhz, Sweep) else freq_mhz
+        maxv = self._maxv(freq_scalar)
+
+        # Gain units (D23): calib int code -> fraction (default); an explicit *scalar* is a raw v2
+        # fraction (used as-is); an explicit *Sweep* is lab-native int codes -> a fraction sweep,
+        # keeping the int-code axis as xpts (sweeps explore calibration in the units the lab uses).
+        if gain is None:
+            gain_out = gain_int_to_frac(pc.gain, maxv)
+        elif isinstance(gain, Sweep):
+            gain_out = gain.mapped(lambda code: gain_int_to_frac(code, maxv))
+        else:
+            gain_out = gain
 
         if pc.type == "flat_top":
             length_us = length if length is not None else pc.length
@@ -69,7 +81,7 @@ class TransmonOps:
         return Pulse(
             line=LineRef(self.element.name, "drive"),
             freq_mhz=freq_mhz,
-            gain=gain_frac,
+            gain=gain_out,
             phase_deg=phase,
             envelope=envelope,
             label=pulse_key,

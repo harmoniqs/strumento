@@ -53,3 +53,15 @@ def test_binding_is_instance_scoped(dev):
     # dev.qubit ops are bound to *this* named element (D21)
     assert dev.qubit.element is dev.elements["qubit"]
     assert dev.qubit.element.name == "qubit"
+
+
+def test_gain_sweep_maps_int_codes_to_fraction_keeps_lab_axis(dev):
+    # D23: a gain Sweep is lab-native int codes -> fraction sweep for the IR, lab-native xpts kept.
+    from strumento.core.sweeps import Sweep
+
+    p = dev.qubit.ge_pi(gain=Sweep("amp", 0, 30000, 51))
+    assert isinstance(p.gain, Sweep)
+    assert p.gain.start == pytest.approx(0.0)
+    assert p.gain.stop == pytest.approx(30000 / MAXV)  # converted to a v2 fraction
+    assert p.gain.points == 51
+    assert p.gain.xpts[0] == pytest.approx(0) and p.gain.xpts[-1] == pytest.approx(30000)
