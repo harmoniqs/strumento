@@ -86,8 +86,8 @@ Its own TODO reads *"Migrate to tProcv2 at some point."* The stack today is four
 ## 2. Locked decisions (from the design session)
 
 *IDs reflect chronological order; D13/D14 are listed next to their thematically-adjacent decisions
-(D4, D9), so the table is grouped rather than strictly numeric. All of D1–D29 are present. D9/D14 are
-**open** (§14); D18's expt_service **execution** circulates (§16); the rest are locked. D21–D24 were
+(D4, D9), so the table is grouped rather than strictly numeric. All of D1–D29 are present. D9 is
+**open** (§14.1); D14 is **resolved** (§14.2, landed 2026-07-21); D18's expt_service **execution** circulates (§16); the rest are locked. D21–D24 were
 added in the naming/extensibility/elegance/station review round (2026-07-17); D25 folds in the qick-v2
 API review; D26–D29 add the codesign-enablement dimension (§19).*
 
@@ -104,7 +104,7 @@ API review; D26–D29 add the codesign-enablement dimension (§19).*
 | D8 | Sequence surface | **Fluent builder** `Seq().play(...).wait(...).raw(...).measure()` as primary. |
 | D9 | Config versioning | **OPEN — to circulate (§14.1).** Tension between append-only immutable snapshots (conflict-free by construction; the *current* model) and git-native (simpler, but race-prone under the shared worker + concurrent users). The earlier lean toward git-native is reopened given the operational reality. |
 | D10 | Config integrity | **Single source of truth** for every physical quantity; nothing derived is stored; low-friction extension. |
-| D14 | Job-server / multi-user | **OPEN — to circulate (§14.2).** How strumento relates to the existing FastAPI + SQLite + single-worker queue: compatible-with vs a clean re-take on the runner vs reimplement. Aaron to circulate. |
+| D14 | Job-server / multi-user | **RESOLVED 2026-07-21 — job-server-native, no-Pyro, compile-off-board + thin execute-agent (§14.2.1, topology (ii)).** Own hardware removes the blocking constraint: we run on a **separate, dedicated FPGA QICK board in parallel on the fridge** (alongside the Schuster multimode board), so there is no shared worker/queue to stay compatible with — we build the clean end-state directly and do **not** stage through Option-A wire-compatibility. Board = dumb executor (load overlay → load compiled program → run → return ADC buffers); off-board owns build/compile/analyze/fit; `JobServerSoc` transport; firmware overlays = per-snapshot `dump_cfg()` JSON; raw board-exec/debug verb retained (Tenet 0). Option A/B remain the description of the compatibility path for anyone sharing the Schuster board; we do not take it. |
 | D11 | Pulse API | **Typed factory functions**, no string keys, no `eval`; pulses are *computed from calibration*, not a stored bank keyed by strings. |
 | D12 | `dev` | The one loaded `Device` object (wiring + calibrations + soccfg **snapshot** + datasets); factory namespaces hang off it. The compiler builds the live `QickConfig` from the snapshot, keeping `device.py` qick-free. |
 | D15 | Generality / horizontal scope | **Design-for-extension** (§15): modality-agnostic `core` + per-modality **modality packs** + per-fridge **device instances** (§5.1). **Three packs: `cqed` (build, Stanford) + `tweezer` (build, Thompson — §17) + `spin` (designed, spinQICK-modeled, build-gated on a spin user — §15.5).** `cqed`+`tweezer` are two real, very different modalities in hand; `spin` is the third data point (shipped external framework) that keeps `core` honest. |
@@ -871,9 +871,12 @@ compatible-with path stays open):
 | **B. Clean re-take on the runner** | strumento ships a tidy submit/runner layer (re-doing `CharacterizationRunner`/`SweepRunner`) that talks to the *existing* queue. | Better ergonomics/serialization; larger surface; must stay wire-compatible with the worker. |
 | **C. Out of scope for now** | Direct in-process `acquire` + mock only; queue integration later. | Fastest to first light; but defers the multi-user reality the lab runs on daily. |
 
-**Recommendation:** **A** for the minimal core (keeps the lab's multi-user workflow working), with **B**
-as a natural follow-on once the core is proven. **Aaron to circulate** (this is a shared-infra decision
-touching everyone who submits jobs).
+**Recommendation (LANDED 2026-07-21 — see §14.2.1, D14):** go **job-server-native, no-Pyro,
+compile-off-board + thin execute-agent** (topology (ii)) **directly** — we do **not** stage through
+Option-A wire-compatibility. The Option-A "keep the shared multi-user workflow working" rationale is moot
+for us: we run on a **separate, dedicated FPGA QICK board in parallel on the fridge**, so there is no
+shared worker/queue to stay compatible with. Options A/B above stay on record as the *compatibility path*
+for anyone sharing the Schuster board; we take neither.
 
 #### 14.2.1 Emerging direction (2026-07-19): job-server-native execution, drop Pyro
 
@@ -907,10 +910,16 @@ reprogrammed per job/user**.
 `soc` proxy") **softens to "under whatever transport the job server uses."** Because strumento already abstracts
 the board behind a small soc protocol (`MockQickSocV2` / `PyQickSoc` / `SimulatorSoc`, §19.3), **dropping
 Pyro is swapping one transport implementation — nothing above it changes.** This is a shared cleanup: it
-also retires the Pyro4 leg in `expt_service` (§16.1). **Refined recommendation:** stay Option-A-compatible
-for the minimal core (don't block on the redesign), but **target job-server-native / no-Pyro** as the
-end state and add a `JobServerSoc` transport (Option B, follow-on) rather than hard-wiring a Pyro proxy.
-*(This subsection informs the §14.2 circulation; still Aaron-to-circulate with the collaboration.)*
+also retires the Pyro4 leg in `expt_service` (§16.1). **Decision (LANDED 2026-07-21):** go
+**job-server-native, no-Pyro, compile-off-board + thin execute-agent** (topology (ii)) **directly** — add a
+`JobServerSoc` transport and do **not** stage through Option-A wire-compatibility. Rationale: we run on a
+**separate, dedicated FPGA QICK board in parallel on the fridge** (alongside the Schuster multimode board),
+so the shared-worker blocking concern that motivated staging through Option-A does not apply to us. The
+clean split: board = **dumb executor** (load overlay → load compiled program → run → return ADC buffers);
+the fast machine owns **build + compile + analyze + fit**; each firmware overlay is exactly one
+`dump_cfg()` soccfg snapshot (§3, D25); a raw board-exec/debug verb is retained (Tenet 0). *(Still worth
+flagging to the QICK collaboration — the no-Pyro cleanup also benefits the shared board and `expt_service`
+— but it no longer gates our work.)*
 
 ## 15. Generality / horizontal scope (D15, D16, D20)
 
