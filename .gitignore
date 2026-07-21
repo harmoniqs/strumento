@@ -36,3 +36,9 @@ scratch/
 # Local reference material — vendored copy of the public SchusterLab/multimode_expts
 # v1 checkout (calib/mock/fitting sources for Tasks 4/5/7/18). Re-cloneable; never committed.
 .refs-v1/
+
+# qick tprocv2 assembler byproduct
+assembler.log
+
+# a real tProc-v2 soccfg dropped here to enable v2 tests is a local artifact, not committed
+devices/_fixtures/soccfg_v2.json
