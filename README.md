@@ -72,6 +72,7 @@ import). Details in **[docs/plan.md](docs/plan.md)**.
 | **[getting-started.md](docs/getting-started.md)** | Hands-on walkthrough with runnable examples — device, pulses, sequences, sweeps, fitting, experiments, the escape hatch, transport. |
 | **[cqed-cookbook.md](docs/cqed-cookbook.md)** | A tour of the `cqed` pack by example — pulses, sweeps, readout, fitting, device authoring, couplings, Hamiltonian export. Every snippet verified against the live API. |
 | **[packs-and-devices.md](docs/packs-and-devices.md)** | How elements compose into a device, the `DeviceBuilder`, typed couplings + Hamiltonian export, and **how to add a modality pack**. |
+| **[job-manager.md](docs/job-manager.md)** | How Strumento reaches a remote/shared board — the job server, `JobServerSoc`, and the compile-off-board wire contract. |
 | **[spec.md](docs/spec.md)** | The design of record — every decision (D1–D31), with rationale. |
 | **[plan.md](docs/plan.md)** | The tracer-bullet slices and task breakdown. |
 | **[qick-v2-api-notes.md](docs/qick-v2-api-notes.md)** | The exact offline qick tProc-v2 API Strumento builds against. |
