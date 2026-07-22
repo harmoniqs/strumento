@@ -40,6 +40,7 @@ def test_to_measurement_result_attaches_sweep_axis():
     assert res.xpts is xpts
 
 
+@pytest.mark.qick
 @requires_v2_soccfg
 def test_construct_and_acquire_returns_measurement_result():
     # Only runs when a tProc-v2 soccfg fixture is present (see tests/_v2gate.py).

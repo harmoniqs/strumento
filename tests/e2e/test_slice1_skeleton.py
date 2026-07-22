@@ -76,6 +76,7 @@ def test_slice1_numeric_golden_quantize(dev):
     assert r.cycles > 0
 
 
+@pytest.mark.qick
 @requires_v2_soccfg
 def test_slice1_full_vertical_on_mock():
     dev = Device.load(LOOPBACK_YAML)
