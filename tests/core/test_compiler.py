@@ -115,3 +115,25 @@ def test_quantize_realizes_to_dac_grid():
     assert r.cycles > 0
     assert 0.0 < r.gain_frac <= 1.0
     assert r.gain_frac == pytest.approx(round(0.1 * 32766) / 32766)
+
+
+def test_shared_dac_with_conflicting_nyquist_raises():
+    # dedup on dac_ch alone must not silently first-win when nyquist zones differ
+    from strumento.core.wiring import Generator, Line, ReadoutWiring, Wiring
+
+    wiring = Wiring(
+        lines={
+            "a": Line(name="a", generators=[Generator(role="main", dac_ch=0, nyquist=1)]),
+            "b": Line(name="b", generators=[Generator(role="main", dac_ch=0, nyquist=2)]),
+        },
+        readout=ReadoutWiring(dac_ch=0, adc_chs=[0]),
+    )
+    prog = RecordingProgram()
+    c = Compiler(prog, wiring)
+    seq = (
+        Seq()
+        .play(Pulse(line=LineRef("a", "main"), freq_mhz=1000.0, gain=0.1, envelope=Gaussian(sigma_us=0.03)))
+        .play(Pulse(line=LineRef("b", "main"), freq_mhz=5000.0, gain=0.1, envelope=Gaussian(sigma_us=0.03)))
+    )
+    with pytest.raises(ValueError, match="Nyquist"):
+        c.declare(seq)

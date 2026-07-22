@@ -33,8 +33,8 @@ htmlcov/
 *.local.json
 scratch/
 
-# Local reference material — vendored copy of the public SchusterLab/multimode_expts
-# v1 checkout (calib/mock/fitting sources for Tasks 4/5/7/18). Re-cloneable; never committed.
+# Local reference material — vendored copy of a public tProc-v1 reference
+# checkout (calib/mock/fitting oracle sources). Re-cloneable; never committed.
 .refs-v1/
 
 # qick tprocv2 assembler byproduct

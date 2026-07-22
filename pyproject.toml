@@ -21,7 +21,7 @@ dependencies = [
 [project.optional-dependencies]
 # qick (with qick.asm_v2) is required only for the compiler / program / mock
 # layers and any on-board run; the pure layers test without it.
-qick = ["qick"]
+qick = ["qick>=0.2.367"]
 test = ["pytest"]
 dev = ["pytest", "ruff", "mypy"]
 
