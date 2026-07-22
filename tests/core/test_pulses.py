@@ -6,7 +6,15 @@ hashable ⇒ the compiler can dedup on ``(generator, envelope)`` for free (spec 
 """
 
 from strumento.core.pulses import (
-    Pulse, Delay, Segment, Raw, Measure, Seq, Gaussian, FlatTop, Const, Arb,
+    Arb,
+    Const,
+    FlatTop,
+    Gaussian,
+    Measure,
+    Pulse,
+    Raw,
+    Segment,
+    Seq,
 )
 from strumento.core.wiring import LineRef
 

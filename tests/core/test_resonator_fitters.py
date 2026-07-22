@@ -20,7 +20,6 @@ from strumento.core.resonator_fitters import (
     fit_resonator_circle,
 )
 
-
 # --- reference models (independent of the implementation) ------------------
 
 

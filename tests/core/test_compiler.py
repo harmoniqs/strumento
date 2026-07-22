@@ -8,8 +8,8 @@ are marked ``qick`` and use the committed (v1) soccfg — the conversion math is
 
 import pytest
 
-from strumento.core.compiler import Compiler, quantize, register_envelope
-from strumento.core.pulses import Const, Gaussian, Pulse, Seq
+from strumento.core.compiler import Compiler, quantize
+from strumento.core.pulses import Gaussian, Pulse, Seq
 from strumento.core.wiring import Generator, Line, LineRef, ReadoutWiring, Wiring
 
 
@@ -104,8 +104,9 @@ def test_delay_and_raw_lower():
 
 @pytest.mark.qick
 def test_quantize_realizes_to_dac_grid():
-    from pathlib import Path
     import json
+    from pathlib import Path
+
     from qick import QickConfig
 
     snap = Path(__file__).parents[2] / "devices" / "_fixtures" / "soccfg_v1_zcu216.json"

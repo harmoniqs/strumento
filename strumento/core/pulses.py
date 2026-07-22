@@ -19,7 +19,7 @@ This module is **pure**: it never imports ``qick``.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 
 from strumento.core.wiring import LineRef
@@ -142,7 +142,7 @@ class Seq:
     def __init__(self, ops: list[Op] | None = None) -> None:
         self.ops: list[Op] = list(ops) if ops is not None else []
 
-    def play(self, item: Pulse | Segment | "Seq") -> "Seq":
+    def play(self, item: Pulse | Segment | Seq) -> Seq:
         """Append a pulse or segment; a ``Seq`` is *flattened* in (its ops are spliced)."""
         if isinstance(item, Seq):
             self.ops.extend(item.ops)
@@ -152,7 +152,7 @@ class Seq:
             raise TypeError(f"play() expects Pulse | Segment | Seq, got {type(item).__name__}")
         return self
 
-    def play_parallel(self, items: "Iterable[Pulse] | Segment | Seq") -> "Seq":
+    def play_parallel(self, items: Iterable[Pulse] | Segment | Seq) -> Seq:
         """Append a :class:`Segment` playing ``items`` simultaneously."""
         if isinstance(items, Segment):
             seg = items
@@ -163,19 +163,19 @@ class Seq:
         self.ops.append(seg)
         return self
 
-    def wait(self, duration_us: float) -> "Seq":
+    def wait(self, duration_us: float) -> Seq:
         self.ops.append(Delay(duration_us))
         return self
 
-    def raw(self, fn: Callable) -> "Seq":
+    def raw(self, fn: Callable) -> Seq:
         self.ops.append(Raw(fn))
         return self
 
-    def measure(self, *, kind: str | None = None, **params: object) -> "Seq":
+    def measure(self, *, kind: str | None = None, **params: object) -> Seq:
         self.ops.append(Measure(kind=kind, params=dict(params)))
         return self
 
-    def __add__(self, other: "Seq") -> "Seq":
+    def __add__(self, other: Seq) -> Seq:
         if not isinstance(other, Seq):
             return NotImplemented
         return Seq(self.ops + other.ops)

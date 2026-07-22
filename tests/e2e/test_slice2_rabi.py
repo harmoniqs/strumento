@@ -60,6 +60,7 @@ def test_rabi_analyze_recovers_pi_gain(dev):
     assert fit.derived["pi_gain"] == pytest.approx(true_period / 2, rel=0.05)  # 10000
 
 
+@pytest.mark.qick
 @requires_v2_soccfg
 def test_rabi_full_go_on_mock():
     dev = Device.load(LOOPBACK_YAML)

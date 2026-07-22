@@ -1,6 +1,5 @@
 """Tests for the Sweep axis (plan Task 11, D23)."""
 
-import numpy as np
 import pytest
 
 from strumento.core.sweeps import Sweep

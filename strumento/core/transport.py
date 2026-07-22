@@ -24,7 +24,7 @@ This module is **pure** — dataclasses + client logic + numpy; no ``qick`` impo
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
 import numpy as np
@@ -54,7 +54,7 @@ class CompiledJob:
         return {"overlay_id": self.overlay_id, "program": self.program, "acquire": self.acquire}
 
     @classmethod
-    def from_wire(cls, d: dict) -> "CompiledJob":
+    def from_wire(cls, d: dict) -> CompiledJob:
         return cls(overlay_id=d["overlay_id"], program=d["program"], acquire=d["acquire"])
 
 
@@ -72,7 +72,7 @@ class RawAcquisition:
         return {"iq": [np.asarray(a).tolist() for a in self.iq]}
 
     @classmethod
-    def from_wire(cls, d: dict) -> "RawAcquisition":
+    def from_wire(cls, d: dict) -> RawAcquisition:
         return cls(iq=[np.asarray(a) for a in d["iq"]])
 
     def to_measurement_result(self, xpts=None) -> MeasurementResult:

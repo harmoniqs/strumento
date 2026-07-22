@@ -7,7 +7,7 @@ band-gated generators) to the concrete ``Generator`` that plays it.
 
 import pytest
 
-from strumento.core.wiring import Generator, Line, Wiring, LineRef, ReadoutWiring
+from strumento.core.wiring import Generator, Line, LineRef, ReadoutWiring, Wiring
 
 
 def _wiring():

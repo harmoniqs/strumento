@@ -6,7 +6,7 @@ import pytest
 import strumento.packs.cqed  # noqa: F401  — importing the pack registers its coupling forms
 from strumento.core.coupling import Coupling, grid_nn, resolve_form, ring_couple
 from strumento.core.operators import HilbertSpace
-from strumento.packs.cqed.couplings import BeamSplitter, Dispersive, ZZ
+from strumento.packs.cqed.couplings import ZZ, BeamSplitter, Dispersive
 
 
 def test_cqed_forms_are_registered():

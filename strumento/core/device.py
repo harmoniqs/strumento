@@ -26,7 +26,7 @@ from typing import Any
 
 import yaml
 
-from strumento.core.wiring import LineRef, Wiring
+from strumento.core.wiring import Wiring
 
 #: attribute names on Device that an element instance name must not shadow.
 _RESERVED = frozenset({"wiring", "calib", "soccfg_snapshot", "elements", "pack", "load"})
@@ -76,7 +76,7 @@ class Device:
         self._bind_namespaces()
 
     @classmethod
-    def load(cls, path: str | Path) -> "Device":
+    def load(cls, path: str | Path) -> Device:
         """Parse an instance YAML → validate → compose elements → bind wiring & namespaces."""
         path = Path(path)
         raw = yaml.safe_load(path.read_text())

@@ -1,0 +1,44 @@
+# Board-in-the-loop CI — runs the qick-marked suite on a real RFSoC board via a
+# self-hosted runner registered ON the board (the upstream qick project's proven
+# pattern). This workflow is inert until such a runner is registered with the
+# labels below; see docs/hardware-ci.md for the runner setup guide.
+name: Hardware
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 7 * * *" # nightly, keeps the board honest
+  pull_request:
+    types: [labeled]
+
+concurrency:
+  group: qick-board # one physical board — serialize
+  cancel-in-progress: false
+
+jobs:
+  board:
+    # Gates: (1) manual dispatch / nightly always allowed; label-gated on PRs.
+    # (2) fork-PR protection: never run fork code on the physical runner.
+    # (3) HAS_QICK_RUNNER repo variable keeps the job skipped until a runner exists.
+    if: >
+      vars.HAS_QICK_RUNNER == 'true' &&
+      (github.event_name != 'pull_request' ||
+       (github.event.label.name == 'run-hardware' &&
+        github.event.pull_request.head.repo.full_name == github.repository))
+    runs-on: [self-hosted, qick]
+    steps:
+      - name: Clean repo (root-owned files from previous sudo runs)
+        continue-on-error: true
+        run: |
+          sudo git clean -ffdx
+          sudo git reset --hard HEAD
+      - uses: actions/checkout@v4
+      - name: Install (FPGA access needs root)
+        run: sudo -E -H python -m pip install -e ".[test,qick]"
+      - name: Board suite
+        run: sudo -E python -m pytest -m qick -q --junitxml=board-results.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: board-results
+          path: board-results.xml

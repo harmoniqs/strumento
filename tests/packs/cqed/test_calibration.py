@@ -8,10 +8,10 @@ import math
 
 import pytest
 
-from strumento.packs.cqed.calibration import Calibration, gain_int_to_frac
-from strumento.packs.cqed.elements import Transmon, BosonicMode, Coupler, ReadoutResonator
-from strumento.packs.cqed.library.transmon import TransmonOps
 from strumento.core.wiring import LineRef
+from strumento.packs.cqed.calibration import Calibration, gain_int_to_frac
+from strumento.packs.cqed.elements import BosonicMode, Coupler, ReadoutResonator, Transmon
+from strumento.packs.cqed.library.transmon import TransmonOps
 
 
 def _calib_dict():

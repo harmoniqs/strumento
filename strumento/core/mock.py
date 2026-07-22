@@ -36,7 +36,7 @@ class MockQickSocV2(QickConfig):
         self._reads_per_shot: list[int] = [1]
 
     @classmethod
-    def from_snapshot(cls, path: str | Path) -> "MockQickSocV2":
+    def from_snapshot(cls, path: str | Path) -> MockQickSocV2:
         """Build from a committed ``dump_cfg()`` JSON snapshot (no board)."""
         return cls(json.loads(Path(path).read_text()))
 
