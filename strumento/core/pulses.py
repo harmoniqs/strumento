@@ -21,6 +21,10 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # annotation-only: keeps the IR module dependency-light
+    from strumento.core.sweeps import Sweep
 
 from strumento.core.wiring import LineRef
 
@@ -97,9 +101,10 @@ class Pulse:
 
 @dataclass
 class Delay:
-    """Idle for ``duration_us``. May carry a swept duration in later slices."""
+    """Idle for ``duration_us`` — a scalar or a :class:`~strumento.core.sweeps.Sweep` (a swept
+    idle is the T1 / T2-Ramsey primitive; the compiler lowers it to a swept ``delay``)."""
 
-    duration_us: float
+    duration_us: float | Sweep
 
 
 @dataclass
