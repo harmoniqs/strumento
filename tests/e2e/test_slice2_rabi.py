@@ -22,6 +22,7 @@ from strumento.core.result import MeasurementResult  # noqa: E402
 from strumento.packs.cqed.experiments.amplitude_rabi import AmplitudeRabi  # noqa: E402
 
 YAML = Path(__file__).parents[2] / "devices" / "multimode_demo" / "device.yaml"
+LOOPBACK_YAML = Path(__file__).parents[2] / "devices" / "loopback_demo" / "device.yaml"
 
 
 @pytest.fixture
@@ -60,7 +61,8 @@ def test_rabi_analyze_recovers_pi_gain(dev):
 
 
 @requires_v2_soccfg
-def test_rabi_full_go_on_mock(dev):
+def test_rabi_full_go_on_mock():
+    dev = Device.load(LOOPBACK_YAML)
     from strumento.core.mock import MockQickSocV2
 
     soc = MockQickSocV2.from_snapshot(V2_SOCCFG)

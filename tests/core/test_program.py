@@ -47,7 +47,7 @@ def test_construct_and_acquire_returns_measurement_result():
     from strumento.core.mock import MockQickSocV2
     from strumento.core.pulses import Seq
 
-    dev = Device.load(Path(__file__).parents[2] / "devices" / "multimode_demo" / "device.yaml")
+    dev = Device.load(Path(__file__).parents[2] / "devices" / "loopback_demo" / "device.yaml")
     soc = MockQickSocV2.from_snapshot(V2_SOCCFG)
     from strumento.core.program import StrumentoProgram
 

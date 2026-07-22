@@ -74,6 +74,17 @@ class StrumentoProgram(AveragerProgramV2):
     def _body(self, cfg):
         self._compiler.play(self.seq)
 
+    def sweep_value(self, name: str, start, stop):
+        """The compiler's handle for a swept field: a live ``QickSweep1D`` over loop ``name``.
+
+        The :class:`~strumento.core.compiler.Compiler` calls this for any ``Sweep``-valued
+        pulse/delay field (keeping the compiler qick-free); the returned object rides into
+        ``add_pulse``/``delay`` exactly as v2 expects.
+        """
+        from qick.asm_v2 import QickSweep1D
+
+        return QickSweep1D(name, start, stop)
+
     def acquire(self, soc, **kwargs) -> MeasurementResult:  # type: ignore[override]
         raw = super().acquire(soc, **kwargs)
         return _to_measurement_result(raw, xpts=self._xpts())

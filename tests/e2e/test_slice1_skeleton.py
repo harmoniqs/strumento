@@ -22,6 +22,7 @@ from strumento.core.device import Device  # noqa: E402
 from strumento.core.pulses import Gaussian, Seq  # noqa: E402
 
 YAML = Path(__file__).parents[2] / "devices" / "multimode_demo" / "device.yaml"
+LOOPBACK_YAML = Path(__file__).parents[2] / "devices" / "loopback_demo" / "device.yaml"
 MAXV = 32766
 
 
@@ -76,7 +77,8 @@ def test_slice1_numeric_golden_quantize(dev):
 
 
 @requires_v2_soccfg
-def test_slice1_full_vertical_on_mock(dev):
+def test_slice1_full_vertical_on_mock():
+    dev = Device.load(LOOPBACK_YAML)
     """Full vertical: build a real AveragerProgramV2 and acquire on the mock (needs v2 soccfg)."""
     from strumento.core.mock import MockQickSocV2
     from strumento.core.program import StrumentoProgram

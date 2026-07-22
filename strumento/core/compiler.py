@@ -111,7 +111,7 @@ class Compiler:
         self.program = program
         self.wiring = wiring
         self.soccfg = soccfg
-        self._declared_gens: set[int] = set()
+        self._declared_gens: dict[int, int] = {}  # dac_ch -> declared nqz
         self._env_names: dict[tuple[int, object], str] = {}
         self._pulse_names: dict[tuple, str] = {}
         self._declared_ros: set[int] = set()
@@ -130,9 +130,16 @@ class Compiler:
 
         for p in pulses:
             gen = self._gen(p)
-            if gen.dac_ch not in self._declared_gens:
+            declared_nqz = self._declared_gens.get(gen.dac_ch)
+            if declared_nqz is None:
                 self.program.declare_gen(ch=gen.dac_ch, nqz=gen.nyquist)
-                self._declared_gens.add(gen.dac_ch)
+                self._declared_gens[gen.dac_ch] = gen.nyquist
+            elif declared_nqz != gen.nyquist:
+                raise ValueError(
+                    f"generator conflict on DAC ch {gen.dac_ch}: declared with nqz="
+                    f"{declared_nqz}, but {p.line.line}.{p.line.role} wants nqz={gen.nyquist} "
+                    f"(one physical generator cannot serve two Nyquist zones in one program)"
+                )
 
         for p in pulses:
             ch = self._gen_ch(p)

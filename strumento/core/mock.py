@@ -10,7 +10,9 @@ array shapes.
 The stubbed surface (enumerated in ``docs/qick-v2-api-notes.md``): everything under
 ``config_all`` / ``load_pulses`` / ``config_gens`` / ``config_readouts`` / ``config_bufs`` /
 the acquire loop is a no-op, except ``start_readout`` (captures the acquisition dims) and
-``poll_data`` (returns correctly-shaped, int64, zero-valued IQ).
+``poll_data`` (returns correctly-shaped, int64, zero-valued IQ). The stub list is the
+surface qick 0.2.367 touches; a qick upgrade that grows the surface shows up as a clean
+AttributeError naming the missing method.
 
 This module imports ``qick`` — it is one of the three qick-facing core modules (with
 ``compiler`` and ``program``).
@@ -54,7 +56,15 @@ class MockQickSocV2(QickConfig):
         return [(self._total_count, (d, None))]
 
     # -- stubbed leaf hardware surface (no-ops) ----------------------------------------
+    # The exact set AveragerProgramV2.acquire touches on qick 0.2.367 (verified by probe):
+    # prepare_round / cleanup_round / clear_tproc_counter / enable_buf / load_envelope +
+    # the program-load and converter-config calls below.
 
+    def prepare_round(self, *args, **kwargs): pass
+    def cleanup_round(self, *args, **kwargs): pass
+    def clear_tproc_counter(self, *args, **kwargs): pass
+    def enable_buf(self, *args, **kwargs): pass
+    def load_envelope(self, *args, **kwargs): pass
     def load_bin_program(self, *args, **kwargs): pass
     def stop_tproc(self, *args, **kwargs): pass
     def start_src(self, *args, **kwargs): pass
