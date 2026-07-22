@@ -128,22 +128,67 @@ extending it — a cheap third data point that `core` isn't cqed-shaped.
 | `tweezer` | AODAxis, AtomArray | — (move library later) | `ImagingReadout` | skeleton |
 | `spin` | Dot, Plunger, Barrier | — (LD / exchange-only later) | `PSBReadout` | skeleton |
 
-## Composition roadmap (D30 / D31) — designed, not yet built
+## Config-as-code — `DeviceBuilder` (D30)
 
-Two decisions extend authoring and the device model; both land with the codesign track, off the
-slices 1–6 critical path.
+Hand-writing YAML is repetitive (the Schuster instance alone is 7 storage modes). `core/builder.py`
+adds a pure, pack-agnostic `DeviceBuilder` that **produces the canonical `Device`** — a third
+authoring surface, freely interconvertible with the data (`Device ⇄ YAML ⇄ builder`), never a
+parallel store. `DeviceBuilder(...).build(calib=…)` and `Device.load(equivalent.yaml)` yield the
+identical model.
 
-- **`DeviceBuilder` — config-as-code (D30).** Hand-writing YAML is repetitive (the Schuster
-  instance alone is 7 storage modes). A pure, pack-agnostic `DeviceBuilder` will *produce* the
-  canonical Pydantic `Device` — a third authoring surface interconvertible with YAML
-  (`Device ⇄ YAML ⇄ builder`), composing over whatever element types the loaded pack registers, so
-  every pack gets programmatic authoring for free. Calibration *values* stay data (`build(calib=…)`),
-  never code.
-- **Typed coupling edges + `to_operator_model` (D31).** A physical coupler (with a DAC) is an
-  *element*; an *interaction* becomes a first-class typed edge — `coupling(a, b, form=…)` — whose
-  `form` is a pack-registered union (`Dispersive`/`ZZ`/`BeamSplitter`/…) carrying an operator
-  template. Once elements and couplings carry operator templates, `dev.to_operator_model(...)`
-  lowers the topology + calibration into a framework-neutral Hamiltonian spec — the mirror of
-  `from_solution`, closing the pulse↔model codesign loop.
+```python
+from strumento.core.builder import DeviceBuilder
+from strumento.core.wiring import Generator
+
+dev = (DeviceBuilder(pack="cqed")            # composes over the loaded pack's element types
+       .add("Transmon", "qubit")             # (never a hardcoded "Transmon")
+       .add("Coupler", "coupler")
+       .add("ReadoutResonator", "readout")
+       .wire("qubit", drive=Generator(dac_ch=2), sideband=Generator(dac_ch=0))  # role = the key
+       .readout(dac_ch=5, adc_chs=[0])
+       .build(calib="devices/schuster_multimode/calib.yml"))   # calib is DATA, never code
+```
+
+**Carve-out:** the builder composes topology + wiring only. Calibration *values* change every run
+(the calibration loop / a device-model report writes them), so they stay data — passed to
+`build(calib=…)` as a dict or file. Construction-time validation gives early diagnostics (readout
+needs ≥1 target; a coupling rejects an unknown endpoint / missing mediator).
+
+## Typed couplings + Hamiltonian export (D31)
+
+A physical coupler (with a DAC) is an *element* you `add`; an *interaction* is a separate,
+first-class **typed edge**:
+
+```python
+from strumento.packs.cqed.couplings import BeamSplitter, ZZ
+from strumento.core.coupling import ring_couple
+
+b.coupling("manipulate", "S3", form=BeamSplitter, mediated_by="coupler")  # a typed edge
+ring_couple(b, ["q0", "q1", "q2", "q3"], form=ZZ)                          # a pattern emits edges
+```
+
+`form` is a **pack-registered union** — the D22 envelope pattern applied to interactions. `cqed`
+registers `Dispersive` / `ZZ` / `Exchange` / `BeamSplitter` / `JaynesCummings`, each carrying a
+symmetry tag and an **operator template**. Strengths (χ, ζ, g, J) are calibration values — kept in
+`calib.couplings["a-b"]`, never on the edge.
+
+Because element types now carry Hamiltonian templates (`Transmon` → Duffing, `BosonicMode` →
+harmonic + Kerr) and couplings carry operator forms, the topology graph **is** a Hamiltonian spec.
+`dev.to_operator_model(...)` lowers it — the mirror of `from_solution`, closing the pulse↔model
+codesign loop:
+
+```python
+model = dev.to_operator_model(frame="rotating", cutoffs={"q0": 3, "manipulate": 8},
+                              include=["q0", "manipulate"])   # subgraph → tractable Hilbert space
+model.H0            # drift Hamiltonian (framework-neutral, angular units)
+model.drives        # {line -> drive operator H_k}
+model.drive_map     # labels that round-trip through from_solution
+model.to_dict()     # JSON-serializable wire format for an upstream consumer
+```
+
+`to_operator_model` is **framework-neutral** and stays in `core` (no Piccolo import). A thin
+`strumento.interop.piccolo.to_piccolo_system(model)` adapter — living in `interop`, *not* core —
+shapes it into Piccolo's `(drift, ordered drives)` convention; the actual `QuantumSystem` is built
+upstream (Piccolo is Julia) from `model.to_dict()`. QuTiP or any other consumer uses the same spec.
 
 See `docs/spec.md` §5.3 and §6.6 for the full design.
