@@ -1,4 +1,4 @@
-"""Resonator / oscillator-spectroscopy fitters (Dave Schuster's 2026-07-21 requirements).
+"""Resonator / oscillator-spectroscopy fitters (design-review requirements).
 
 The subtle, real-world half of the fitting surface: extracting resonator quality factors from
 spectroscopy data with non-idealities — environmental gain/rotation, cable delay, impedance
@@ -10,7 +10,7 @@ mismatch (asymmetry), and IQ-plane offset. Three fitters:
   for both **notch** (hanger / S21 transmission) and **reflection** (S11) geometries
 - :func:`fit_fano`             — asymmetric Fano ("Spano") lineshape for skewed resonances
 
-**Vendored, not depended on** (Dave's guidance — resonator fits change rarely; a dependency is a
+**Vendored, not depended on** (deliberately — resonator fits change rarely; a dependency is a
 downstream-breakage risk for little gain). Methods are re-implemented in-repo from the published
 descriptions:
 

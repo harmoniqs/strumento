@@ -3,7 +3,7 @@
 Slice 2 ships ``fit_rabi`` (amplitude Rabi = a decaying cosine of drive amplitude). Slice 3 adds
 the time-domain damped-sinusoid family — T1 (``fit_exp``), T2 Ramsey (``fit_decaysin_detuned``),
 and damped Rabi (``fit_damped_rabi``) — which all share a single damped-oscillation model and
-differ only in the physical quantities their ``derived`` fields expose (Dave Schuster's
+differ only in the physical quantities their ``derived`` fields expose (design-review
 "one fit, different post-processing" principle, 2026-07-21). Resonator-spectroscopy fitters
 (Lorentzian / circle / Fano) live alongside in :mod:`strumento.core.resonator_fitters`.
 
@@ -106,7 +106,7 @@ def fit_rabi(xpts, y) -> FitResult:
 
 # --------------------------------------------------------------------------- #
 # Oscillator / relaxation family (slice 3) — exponential + damped sinusoid.
-# One fit, different post-processing (D4 / Dave Schuster 2026-07-21).
+# One fit, different post-processing: a shared damped-sinusoid primitive + typed wrappers.
 # --------------------------------------------------------------------------- #
 
 

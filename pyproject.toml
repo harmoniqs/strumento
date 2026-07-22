@@ -40,7 +40,7 @@ testpaths = ["tests"]
 markers = [
     "pure: no qick / no board required (the bulk of the logic)",
     "qick: requires qick (compiler / program / mock)",
-    "oracle: cross-checks against the legacy multimode_expts fitting.py",
+    "oracle: cross-checks against a legacy reference implementation (out-of-tree)",
 ]
 
 [tool.ruff]

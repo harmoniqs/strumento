@@ -21,7 +21,7 @@ from strumento.core.device import Device  # noqa: E402
 from strumento.core.result import MeasurementResult  # noqa: E402
 from strumento.packs.cqed.experiments.amplitude_rabi import AmplitudeRabi  # noqa: E402
 
-YAML = Path(__file__).parents[2] / "devices" / "schuster_multimode" / "device.yaml"
+YAML = Path(__file__).parents[2] / "devices" / "multimode_demo" / "device.yaml"
 
 
 @pytest.fixture

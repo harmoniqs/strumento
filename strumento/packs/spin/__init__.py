@@ -1,4 +1,4 @@
-"""spin — quantum-dot modality pack (spec §15.5) — spinQICK-modeled (HRL).
+"""spin — quantum-dot modality pack (spec §15.5) — spinQICK-modeled.
 
 Gate-defined quantum dots (`Dot` / `Plunger` / `Barrier`), Loss–DiVincenzo and exchange-only
 encodings, PSB / charge-sensing readout. **Designed now, built when a spin user appears** — this is

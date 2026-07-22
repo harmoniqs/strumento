@@ -12,7 +12,7 @@ pytest.importorskip("qick")
 
 from strumento.core.mock import MockQickSocV2  # noqa: E402
 
-SNAP = Path(__file__).parents[2] / "devices" / "schuster_multimode" / "soccfg_snapshot.json"
+SNAP = Path(__file__).parents[2] / "devices" / "_fixtures" / "soccfg_v1_zcu216.json"
 
 pytestmark = pytest.mark.qick
 

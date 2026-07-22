@@ -21,7 +21,7 @@ from strumento.core.compiler import Compiler, quantize  # noqa: E402
 from strumento.core.device import Device  # noqa: E402
 from strumento.core.pulses import Gaussian, Seq  # noqa: E402
 
-YAML = Path(__file__).parents[2] / "devices" / "schuster_multimode" / "device.yaml"
+YAML = Path(__file__).parents[2] / "devices" / "multimode_demo" / "device.yaml"
 MAXV = 32766
 
 
@@ -44,12 +44,12 @@ def test_slice1_vertical_structural(dev):
 
     # the Gaussian envelope was lowered with the calibrated sigma
     ag = prog.first("add_gauss")
-    assert ag[3]["sigma"] == pytest.approx(0.035)
+    assert ag[3]["sigma"] == pytest.approx(0.030)
 
     # the pulse carries the real calibrated frequency + fraction gain (D23)
     ap = prog.first("add_pulse")
-    assert ap[3]["freq"] == pytest.approx(3562.6105332943075)
-    assert ap[3]["gain"] == pytest.approx(3289 / MAXV)
+    assert ap[3]["freq"] == pytest.approx(4000.0)
+    assert ap[3]["gain"] == pytest.approx(8192 / MAXV)
 
     # timeline order: play the pulse, then trigger the readout
     kinds = prog.kinds()
@@ -66,12 +66,12 @@ def test_slice1_numeric_golden_quantize(dev):
     p = dev.qubit.ge_pi()
     r = quantize(p, soccfg, dev.wiring)
 
-    # frequency snaps to the DDS grid within a few Hz of the requested 3562.6105 MHz
-    assert r.freq_mhz_actual == pytest.approx(3562.6105332943075, abs=1e-3)
+    # frequency snaps to the DDS grid within a few Hz of the requested 4000.0 MHz
+    assert r.freq_mhz_actual == pytest.approx(4000.0, abs=1e-3)
     # gain realized to amplitude resolution == the calibrated code 3289 / maxv
-    assert r.gain_frac == pytest.approx(3289 / MAXV)
+    assert r.gain_frac == pytest.approx(8192 / MAXV)
     # a 4-sigma (0.14 us) Gaussian window is a positive integer number of cycles
-    assert r.cycles == soccfg.us2cycles(0.035 * 4, gen_ch=2)
+    assert r.cycles == soccfg.us2cycles(0.030 * 4, gen_ch=2)
     assert r.cycles > 0
 
 
