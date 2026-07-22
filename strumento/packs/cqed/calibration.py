@@ -67,3 +67,6 @@ class Calibration(_Strict):
 
     qubit: QubitCal
     readout: ReadoutCal
+    #: interaction strengths (MHz) for typed coupling edges, keyed "elementA-elementB" (D31);
+    #: the strength stays *data* here, never on the edge declaration.
+    couplings: dict[str, float] = {}
