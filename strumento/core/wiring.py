@@ -50,7 +50,7 @@ class Generator(BaseModel):
     one whose band contains the requested frequency. ``None`` means "plays any frequency".
     """
 
-    role: str
+    role: str | None = None  # set from the wire-key by DeviceBuilder; always present in a built device
     dac_ch: int
     nyquist: int = 1
     gen_type: str = "full"

@@ -23,9 +23,11 @@ swappable **modality packs**.
 | Layer | State |
 |---|---|
 | `core` — wiring, pulse IR, sweeps, device, compiler, result, fitters, readout, experiment, soc, **transport** | ✅ built |
-| `cqed` pack — element types, calibration schema, `TransmonOps`, `DispersiveIQ`, `AmplitudeRabi` | ✅ built |
+| `core` device model — `DeviceBuilder` (config-as-code), typed **couplings** + Hamiltonian export (`to_operator_model`) | ✅ built (D30/D31) |
+| `cqed` pack — element types + Duffing/mode templates, calibration schema, `TransmonOps`, `DispersiveIQ`, coupling forms, `AmplitudeRabi` | ✅ built |
+| `tweezer` / `spin` packs — element types + calibration + readout kind (no pulse library yet) | ✅ skeletons |
 | `core` qick-facing — `MockQickSocV2`, `StrumentoProgram` | ✅ built |
-| Slices 3–6 (T1/T2, f0g1/swap, parity, optimal-control import) · `tweezer`/`spin` packs | ⏳ roadmap |
+| Slices 3–6 (T1/T2, f0g1/swap, parity, optimal-control import) | ⏳ roadmap |
 
 Two slices are green end-to-end: **Slice 1** (a pulse compiles onto the mock) and **Slice 2**
 (amplitude Rabi — sweeps + fitting). The full test suite runs offline; ~95% of the logic needs no

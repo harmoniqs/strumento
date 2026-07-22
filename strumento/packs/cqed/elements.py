@@ -19,8 +19,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import ClassVar
 
+import numpy as np
+
 from strumento.core.wiring import LineRef
 from strumento.packs.cqed.library.transmon import TransmonOps
+
+_TWO_PI = 2 * np.pi
 
 
 @dataclass
@@ -37,6 +41,18 @@ class Transmon:
     def lines(self) -> list[LineRef]:
         return [LineRef(self.name, "drive")]
 
+    def hamiltonian(self, ops, *, frame: str = "rotating") -> np.ndarray:
+        """Duffing bare Hamiltonian (D31/§6.6): ω a†a + (α/2) a†a†aa, α = f_ef − f_ge.
+
+        In the rotating frame the linear ω·a†a term is dropped (rotating at the qubit frequency),
+        leaving the anharmonicity; ``frame="lab"`` keeps it. Angular units (2π·f).
+        """
+        alpha = (self.f_ef - self.f_ge) if self.f_ef is not None else 0.0
+        h = (_TWO_PI * alpha / 2) * (ops.adag @ ops.adag @ ops.a @ ops.a)
+        if frame == "lab":
+            h = h + _TWO_PI * self.f_ge * ops.n
+        return h
+
 
 @dataclass
 class BosonicMode:
@@ -50,11 +66,23 @@ class BosonicMode:
     name: str
     role: str = "storage"
     line: str | None = None
+    freq_mhz: float | None = None
+    kerr_mhz: float = 0.0
 
     ops_cls: ClassVar[type | None] = None
 
     def lines(self) -> list[LineRef]:
         return [LineRef(self.line or self.name, "main")]
+
+    def hamiltonian(self, ops, *, frame: str = "rotating") -> np.ndarray:
+        """Bare cavity Hamiltonian: ω b†b (+ optional self-Kerr K/2 b†b†bb). Angular units.
+
+        The linear ω term is dropped in the rotating frame; the (small) self-Kerr is kept.
+        """
+        h = (_TWO_PI * self.kerr_mhz / 2) * (ops.adag @ ops.adag @ ops.a @ ops.a)
+        if frame == "lab" and self.freq_mhz:
+            h = h + _TWO_PI * self.freq_mhz * ops.n
+        return h
 
 
 @dataclass

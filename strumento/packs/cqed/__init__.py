@@ -19,6 +19,7 @@ name). A pack exposes:
   lives, keeping ``core`` modality-general).
 """
 
+from strumento.packs.cqed import couplings as _couplings  # noqa: F401  (registers coupling forms)
 from strumento.packs.cqed.calibration import Calibration
 from strumento.packs.cqed.elements import (
     BosonicMode,

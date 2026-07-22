@@ -41,6 +41,18 @@ def _load_pack(name: str) -> Any:
     raise KeyError(f"no pack {name!r} under 'strumento.packs' entry points (have {available})")
 
 
+def _parse_couplings(raw: list[dict]) -> list:
+    """Build typed coupling edges from a YAML ``couplings:`` list (form is a registered name)."""
+    if not raw:
+        return []
+    from strumento.core.coupling import Coupling
+
+    return [
+        Coupling(a=c["a"], b=c["b"], form=c["form"], mediated_by=c.get("mediated_by"))
+        for c in raw
+    ]
+
+
 class Device:
     """A loaded device instance: wiring + calibration + soccfg + composed elements/namespaces."""
 
@@ -52,12 +64,14 @@ class Device:
         soccfg_snapshot: dict | None,
         elements: dict[str, Any],
         pack: Any,
+        couplings: list | tuple = (),
     ) -> None:
         self.wiring = wiring
         self.calib = calib
         self.soccfg_snapshot = soccfg_snapshot
         self.elements = elements
         self.pack = pack
+        self.couplings = list(couplings)  # typed interaction edges (D31)
         self._validate_wiring()
         self._bind_namespaces()
 
@@ -77,12 +91,15 @@ class Device:
         if snap_name:
             soccfg_snapshot = json.loads((path.parent / snap_name).read_text())
 
+        couplings = _parse_couplings(raw.get("couplings", []))
+
         return cls(
             wiring=wiring,
             calib=calib,
             soccfg_snapshot=soccfg_snapshot,
             elements=elements,
             pack=pack,
+            couplings=couplings,
         )
 
     # -- internals ---------------------------------------------------------------------
@@ -111,6 +128,17 @@ class Device:
             if name in _RESERVED or hasattr(self, name):
                 raise ValueError(f"element name {name!r} collides with a reserved Device attribute")
             setattr(self, name, ops_cls(self, el))
+
+    def to_operator_model(self, *, frame: str = "rotating", cutoffs: dict[str, int], include=None):
+        """Export topology + couplings + calibration as a framework-neutral Hamiltonian spec (D31).
+
+        Mirror of the ``from_solution`` import seam — see
+        :func:`strumento.core.operators.to_operator_model`. Core stays Piccolo-free; the upstream
+        ``to_piccolo_system`` (or QuTiP) bridge consumes the returned :class:`OperatorModel`.
+        """
+        from strumento.core.operators import to_operator_model
+
+        return to_operator_model(self, frame=frame, cutoffs=cutoffs, include=include)
 
     def __repr__(self) -> str:
         return f"Device(pack={self.pack.__name__!r}, elements={sorted(self.elements)})"
