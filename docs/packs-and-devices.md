@@ -110,7 +110,7 @@ tweezer = "strumento.packs.tweezer"
 spin = "strumento.packs.spin"
 ```
 
-With that, `Device.load("devices/thompson_tweezer/device.yaml")` composes an `AODAxis`/`AtomArray`
+With that, `Device.load("devices/tweezer_demo/device.yaml")` composes an `AODAxis`/`AtomArray`
 device — and `core` never changed. The `tweezer` pack also shows the two optional extension points:
 `ImagingReadout` (an **external-detector** readout kind — the acid test that the readout seam is
 IQ-agnostic) and `PolyChirp` (a **pack-owned envelope**: a compact move as polynomial coefficients,
@@ -130,7 +130,7 @@ extending it — a cheap third data point that `core` isn't cqed-shaped.
 
 ## Config-as-code — `DeviceBuilder` (D30)
 
-Hand-writing YAML is repetitive (the Schuster instance alone is 7 storage modes). `core/builder.py`
+Hand-writing YAML is repetitive (a multimode instance can carry many storage modes). `core/builder.py`
 adds a pure, pack-agnostic `DeviceBuilder` that **produces the canonical `Device`** — a third
 authoring surface, freely interconvertible with the data (`Device ⇄ YAML ⇄ builder`), never a
 parallel store. `DeviceBuilder(...).build(calib=…)` and `Device.load(equivalent.yaml)` yield the
@@ -146,7 +146,7 @@ dev = (DeviceBuilder(pack="cqed")            # composes over the loaded pack's e
        .add("ReadoutResonator", "readout")
        .wire("qubit", drive=Generator(dac_ch=2), sideband=Generator(dac_ch=0))  # role = the key
        .readout(dac_ch=5, adc_chs=[0])
-       .build(calib="devices/schuster_multimode/calib.yml"))   # calib is DATA, never code
+       .build(calib="devices/multimode_demo/calib.yml"))   # calib is DATA, never code
 ```
 
 **Carve-out:** the builder composes topology + wiring only. Calibration *values* change every run

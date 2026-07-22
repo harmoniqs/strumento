@@ -1,4 +1,4 @@
-"""spin (quantum-dot) element types (spec §15.5) — spinQICK-modeled (HRL).
+"""spin (quantum-dot) element types (spec §15.5) — spinQICK-modeled.
 
 Gate-defined quantum dots: a `Dot` qubit driven for control, with `Plunger` and `Barrier` DC gates
 that set the electrostatics (charge stability, exchange). Qubit encodings are Loss–DiVincenzo

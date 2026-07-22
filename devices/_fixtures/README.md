@@ -1,22 +1,30 @@
-# Test fixtures
+# Test fixtures — soccfg snapshots
 
-## `soccfg_v2.json` (not committed — drop it here to enable v2 tests)
+A **soccfg snapshot** is the JSON produced by `QickSoc.dump_cfg()` on a board; rebuilt offline via
+`QickConfig(json)`, it drives unit conversions, `maxv` gain math, and — for tProc-v2 configs —
+full `AveragerProgramV2` assembly with **no board attached**.
 
-Several tests build a real `AveragerProgramV2`, which requires a **tProc-v2** (`qick_processor`)
-soccfg. The committed `devices/schuster_multimode/soccfg_snapshot.json` is a tProc-**v1**
-(`axis_tproc64x32_x8`) config from the Schuster multimode board, so it cannot drive v2 assembly.
+## `soccfg_v1_zcu216.json` (committed)
 
-Those tests are skip-gated on the presence of a v2 config at:
+A tProc-**v1** (`axis_tproc64x32_x8`) ZCU216 config. Used by the pure unit math (`quantize`,
+`maxv` gain conversion) and the v1-era mock tests. It **cannot** drive v2 assembly.
 
-```
-devices/_fixtures/soccfg_v2.json
-```
+## `soccfg_v2_testbench.json` (committed)
 
-To enable them, drop a `QickConfig.dump_cfg()` JSON from any tProc-v2 board here (e.g. Sho
-Uemura's board — the `dump_cfg()` the Slack request asks for). The gate lives in
-`tests/_v2gate.py`; the tests it guards:
+The official qick **testbench** firmware config (from
+[`openquantumhardware/qick`](https://github.com/openquantumhardware/qick)
+`firmware/testbench/qick_testbench/soccfg.json`, MIT license): ZCU216, `qick_processor`
+(tProc **v2**), **one** full-speed generator + **one** dynamic readout. It is a simulation
+firmware's config, not a lab board's — single-channel only — but it is a *real* v2 config, so
+real v2 program assembly runs offline and in CI against it (see `devices/loopback_demo`).
+
+## `soccfg_v2.json` (not committed — drop yours here)
+
+The v2 gate (`tests/_v2gate.py`) prefers a local `soccfg_v2.json` over the testbench snapshot.
+Drop a `dump_cfg()` JSON from **your** tProc-v2 board here and the v2-gated tests (real assembly +
+numeric goldens) run against your firmware:
 
 - `tests/core/test_program.py::test_construct_and_acquire_returns_measurement_result`
 - `tests/e2e/test_slice1_skeleton.py::test_slice1_full_vertical_on_mock`
 
-Everything else (pure logic + `quantize` unit math) runs against the v1 snapshot.
+Everything else (pure logic + `quantize` unit math) runs against the committed snapshots.

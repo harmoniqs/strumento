@@ -1,4 +1,4 @@
-# Thompson neutral-atom tweezer instance (tweezer pack) — SKELETON.
+# tweezer_demo — a generic neutral-atom tweezer instance (tweezer pack) — SKELETON.
 #
 # QICK controls the dynamic AOD tweezers (two mux axes, up to 32 tones each); the SLM static array
 # is not FPGA-driven. Numbers here are placeholders for the skeleton — real AOD calibration and the

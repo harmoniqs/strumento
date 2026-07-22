@@ -58,7 +58,7 @@ class Transmon:
 class BosonicMode:
     """A bosonic (cavity) mode — a storage or manipulate mode. Ops land in Task 13.
 
-    Multiple modes can share one physical line (the 7 Schuster storage modes all ride the
+    Multiple modes can share one physical line (e.g. several storage modes riding one
     single ``storage`` DAC at different frequencies), so ``line`` is separable from ``name`` and
     defaults to it.
     """

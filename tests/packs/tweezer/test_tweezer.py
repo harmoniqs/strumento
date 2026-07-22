@@ -12,7 +12,7 @@ from strumento.packs.tweezer.elements import AODAxis, AtomArray
 from strumento.packs.tweezer.envelopes import PolyChirp
 from strumento.packs.tweezer.readout import ImagingReadout
 
-YAML = Path(__file__).parents[3] / "devices" / "thompson_tweezer" / "device.yaml"
+YAML = Path(__file__).parents[3] / "devices" / "tweezer_demo" / "device.yaml"
 
 
 def test_instance_loads_and_composes():

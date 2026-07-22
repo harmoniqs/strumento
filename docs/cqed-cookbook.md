@@ -30,7 +30,7 @@ on the mock (§6), which needs a tProc-v2 soccfg; it's flagged where it appears.
 ```python
 from strumento import Device, LineRef
 
-dev = Device.load("devices/schuster_multimode/device.yaml")
+dev = Device.load("devices/multimode_demo/device.yaml")
 
 dev                                   # Device(pack='strumento.packs.cqed', elements=['S1', ... 'qubit', 'readout'])
 dev.calib.qubit.f_ge                  # 3562.6105332943075   (MHz)
@@ -127,7 +127,7 @@ xpts, avgi, avgq = result.as_tuple()      # xpts is the 0..30000 int-code axis
 ```
 
 > ⚠️ **Needs a tProc-v2 soccfg.** `StrumentoProgram` assembles a real `AveragerProgramV2`
-> (`qick_processor`). The committed Schuster snapshot is tProc-**v1**, so drop a v2 `dump_cfg()` at
+> (`qick_processor`). The committed board snapshot is tProc-**v1**, so drop a v2 `dump_cfg()` at
 > `devices/_fixtures/soccfg_v2.json` to run this (see `devices/_fixtures/README.md`). Everything
 > above (build, sweep, quantize) and the analysis below need no board.
 

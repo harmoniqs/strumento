@@ -8,10 +8,10 @@ lifecycle — with a raw-qick escape hatch at every level. You describe operatio
 (`dev.qubit.ge_pi()`, a gain sweep, a readout); Strumento resolves the wiring, compiles to v2, and
 gives you back typed results. Nothing is walled off — when you need raw qick, it's one call away.
 
-It's a ground-up redesign of the core of Stanford's
-[`SchusterLab/multimode_expts`](https://github.com/SchusterLab/multimode_expts) (a tProc-**v1**
-codebase) — keeping the physics, discarding the architecture — and it's built to generalize: one
-modality-agnostic `core`, swappable **packs** for superconducting / neutral-atom / spin qubits.
+It's designed from first principles against the tProc-v2 API — informed by the architecture
+lessons of mature tProc-v1 lab stacks, keeping the physics and discarding the legacy — and it's
+built to generalize: one modality-agnostic `core`, swappable **packs** for superconducting /
+neutral-atom / spin qubits.
 
 > 🔒 Private while the core is proven; open-source is the intent.
 
@@ -20,7 +20,7 @@ modality-agnostic `core`, swappable **packs** for superconducting / neutral-atom
 ```python
 from strumento import Device, Seq, Sweep
 
-dev = Device.load("devices/schuster_multimode/device.yaml")
+dev = Device.load("devices/multimode_demo/device.yaml")
 
 # Amplitude Rabi — in device language, no register-level assembly.
 # The gain sweep is just a value in the pulse; the compiler turns it into a loop.
@@ -57,13 +57,13 @@ The modality-agnostic `core` and the `cqed` pack are built and green end-to-end 
 `DeviceBuilder`, typed couplings, and Hamiltonian export — is built (D30/D31); `tweezer` and `spin`
 ship as pack skeletons. The suite runs offline and ~95% of the logic needs no `qick`.
 
-> **One gate:** building a *real* `AveragerProgramV2` needs a **tProc-v2** (`qick_processor`)
-> soccfg. The committed Schuster snapshot is tProc-**v1**, so the few tests that assemble a real v2
-> program skip until a v2 `dump_cfg()` is dropped at `devices/_fixtures/soccfg_v2.json`. Everything
-> else — building, compiling, fitting, the transport contract — runs today.
+> **The v2 story:** building a *real* `AveragerProgramV2` needs a **tProc-v2** (`qick_processor`)
+> soccfg. The repo commits the official qick **testbench** v2 config (single-channel), so real v2
+> assembly runs offline and in CI; drop your own board's `dump_cfg()` at
+> `devices/_fixtures/soccfg_v2.json` and the v2 suite runs against *your* firmware instead.
 
 Roadmap: Slice 3 (T1/T2), Slice 4 (f0g1 + storage swap), Slice 5 (parity), Slice 6 (optimal-control
-import). Details in **[docs/plan.md](docs/plan.md)**.
+import).
 
 ## Documentation
 
@@ -73,8 +73,6 @@ import). Details in **[docs/plan.md](docs/plan.md)**.
 | **[cqed-cookbook.md](docs/cqed-cookbook.md)** | A tour of the `cqed` pack by example — pulses, sweeps, readout, fitting, device authoring, couplings, Hamiltonian export. Every snippet verified against the live API. |
 | **[packs-and-devices.md](docs/packs-and-devices.md)** | How elements compose into a device, the `DeviceBuilder`, typed couplings + Hamiltonian export, and **how to add a modality pack**. |
 | **[job-manager.md](docs/job-manager.md)** | How Strumento reaches a remote/shared board — the job server, `JobServerSoc`, and the compile-off-board wire contract. |
-| **[spec.md](docs/spec.md)** | The design of record — every decision (D1–D31), with rationale. |
-| **[plan.md](docs/plan.md)** | The tracer-bullet slices and task breakdown. |
 | **[qick-v2-api-notes.md](docs/qick-v2-api-notes.md)** | The exact offline qick tProc-v2 API Strumento builds against. |
 
 ## Architecture
@@ -100,7 +98,7 @@ flowchart TD
         SPIN["spin (skeleton)"]
     end
     subgraph devices["devices — per-fridge instances"]
-        SM[schuster_multimode]
+        SM[multimode_demo]
     end
     packs --> core
     devices --> packs
@@ -127,8 +125,8 @@ strumento/
       spin/       elements · calibration · readout                                         (skeleton)
     interop/      piccolo    — upstream bridges; core stays framework-neutral
   devices/
-    schuster_multimode/   device.yaml + soccfg snapshot   (cqed instance)
-    thompson_tweezer/     device.yaml                     (tweezer instance)
+    multimode_demo/   device.yaml + soccfg snapshot   (cqed instance)
+    tweezer_demo/     device.yaml                     (tweezer instance)
     spin_demo/            device.yaml                     (spin instance)
   docs/           spec · plan · getting-started · packs-and-devices · qick-v2-api-notes
   tests/          core/ · packs/ · interop/ · e2e/

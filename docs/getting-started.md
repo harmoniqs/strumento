@@ -1,8 +1,8 @@
 # Getting started with Strumento
 
-A hands-on walkthrough. Every example runs against the committed Schuster instance; the only step
+A hands-on walkthrough. Every example runs against the committed `multimode_demo` instance; the only step
 that needs real hardware (or a tProc-v2 soccfg) is the final acquire, which is flagged where it
-appears. If you're coming from `multimode_expts` or raw QICK, this shows how the same experiments
+appears. If you're coming from a register-level tProc-v1 stack or raw QICK, this shows how the same experiments
 look in device language.
 
 ## 1. Install
@@ -26,7 +26,7 @@ gives you a `Device` whose elements are addressable by name:
 ```python
 from strumento import Device
 
-dev = Device.load("devices/schuster_multimode/device.yaml")
+dev = Device.load("devices/multimode_demo/device.yaml")
 print(dev)
 # Device(pack='strumento.packs.cqed', elements=['S1', ..., 'coupler', 'manipulate', 'qubit', 'readout'])
 
@@ -121,7 +121,7 @@ xpts, avgi, avgq = result.as_tuple()        # xpts == the 0..30000 int-code axis
 ```
 
 > **This step needs a tProc-v2 soccfg.** `StrumentoProgram` assembles a real `AveragerProgramV2`,
-> which requires a `qick_processor` config. The committed Schuster snapshot is tProc-**v1**; drop a
+> which requires a `qick_processor` config. The committed board snapshot is tProc-**v1**; drop a
 > v2 `dump_cfg()` at `devices/_fixtures/soccfg_v2.json` to enable it (see
 > `devices/_fixtures/README.md`). Until then, everything up to and including *compilation* works —
 > the compiler is verified against a recording program — you just can't acquire offline yet.
@@ -199,4 +199,4 @@ board, or the transport to it, changes nothing above this seam.
 - `docs/spec.md` — the full design of record and every decision (D1–D31).
 - `docs/plan.md` — the tracer-bullet slices and task breakdown.
 - `docs/qick-v2-api-notes.md` — the exact offline qick tProc-v2 API strumento builds against.
-- `devices/schuster_multimode/README.md` — anatomy of a device instance.
+- `devices/multimode_demo/README.md` — anatomy of a device instance.

@@ -42,12 +42,12 @@ def test_to_measurement_result_attaches_sweep_axis():
 
 @requires_v2_soccfg
 def test_construct_and_acquire_returns_measurement_result():
-    # Only runs when a real tProc-v2 soccfg is present (Sho's dump_cfg).
+    # Only runs when a tProc-v2 soccfg fixture is present (see tests/_v2gate.py).
     from strumento.core.device import Device
     from strumento.core.mock import MockQickSocV2
     from strumento.core.pulses import Seq
 
-    dev = Device.load(Path(__file__).parents[2] / "devices" / "schuster_multimode" / "device.yaml")
+    dev = Device.load(Path(__file__).parents[2] / "devices" / "multimode_demo" / "device.yaml")
     soc = MockQickSocV2.from_snapshot(V2_SOCCFG)
     from strumento.core.program import StrumentoProgram
 

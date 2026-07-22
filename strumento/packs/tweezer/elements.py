@@ -1,6 +1,6 @@
-"""tweezer element types (spec §17) — Thompson neutral-atom AOD control (arXiv 2506.13724).
+"""tweezer element types (spec §17) — neutral-atom AOD control (after arXiv:2506.13724).
 
-QICK's role in the Thompson system is the **AOD dynamic/transport controller**: each of the two
+QICK's role in such a system is the **AOD dynamic/transport controller**: each of the two
 orthogonal AOD axes (X/Y) is a mux generator summing up to 32 independent DDS tones — one tone per
 movable tweezer (frequency → position, amplitude → depth). The static SLM array is *not* QICK-driven.
 

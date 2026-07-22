@@ -1,4 +1,4 @@
-"""Tests for the vendored resonator / oscillator-spectroscopy fitters (Dave Schuster's
+"""Tests for the vendored resonator / oscillator-spectroscopy fitters (design-review
 2026-07-21 requirements).
 
 Pure: fits synthetic complex S21 / magnitude data with known parameters + noise and checks

@@ -24,8 +24,8 @@ def test_all_packs_are_discoverable():
 @pytest.mark.parametrize(
     "instance,pack",
     [
-        ("schuster_multimode", "cqed"),
-        ("thompson_tweezer", "tweezer"),
+        ("multimode_demo", "cqed"),
+        ("tweezer_demo", "tweezer"),
         ("spin_demo", "spin"),
     ],
 )

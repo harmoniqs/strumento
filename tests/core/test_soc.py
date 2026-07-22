@@ -36,5 +36,5 @@ def test_incomplete_soc_does_not_satisfy():
 def test_mock_satisfies_abstract_soc():
     from strumento.core.mock import MockQickSocV2
 
-    snap = Path(__file__).parents[2] / "devices" / "schuster_multimode" / "soccfg_snapshot.json"
+    snap = Path(__file__).parents[2] / "devices" / "_fixtures" / "soccfg_v1_zcu216.json"
     assert isinstance(MockQickSocV2.from_snapshot(snap), AbstractSoc)

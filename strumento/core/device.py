@@ -11,7 +11,7 @@ tweezer, spin, … packs without change.
 
 **Topology-derived namespaces (D21).** ``load`` walks the *named* element instances and binds
 ``dev.<name>`` to an instance of that element type's ``ops_cls``. ``dev.qubit`` exists because
-the Schuster YAML names its transmon ``qubit`` — not because the pack hardcodes it. Element
+the instance YAML names its transmon ``qubit`` — not because the pack hardcodes it. Element
 types whose ops land in a later slice have ``ops_cls is None`` and are simply not bound yet.
 
 This module is **pure**: it never imports ``qick``.

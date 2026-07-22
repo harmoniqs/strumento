@@ -1,4 +1,4 @@
-"""tweezer — neutral-atom AOD modality pack (spec §17; Thompson, arXiv 2506.13724).
+"""tweezer — neutral-atom AOD modality pack (spec §17; after arXiv:2506.13724).
 
 QICK as the dynamic-tweezer / transport controller: AOD axes as 32-tone mux generators, moves as
 `PolyChirp` envelopes, fluorescence **imaging** readout on an external detector. **Designed now,
@@ -7,7 +7,7 @@ and the `PolyChirp` envelope, wired through the standard pack contract (``CALIBR
 ``compose_elements``) so ``core.device.load`` composes it with no core change. Pulse libraries
 (the move factory + its envelope lowering) and imaging-interleaved experiments are later work.
 
-First device instance: ``devices/thompson_tweezer``.
+First device instance: ``devices/tweezer_demo``.
 """
 
 from strumento.packs.tweezer.calibration import TweezerCalibration

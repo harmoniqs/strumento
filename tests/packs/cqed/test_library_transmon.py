@@ -9,7 +9,7 @@ from strumento.core.pulses import Gaussian
 from strumento.core.wiring import LineRef
 from strumento.packs.cqed.calibration import gain_int_to_frac
 
-YAML = Path(__file__).parents[3] / "devices" / "schuster_multimode" / "device.yaml"
+YAML = Path(__file__).parents[3] / "devices" / "multimode_demo" / "device.yaml"
 
 MAXV = 32766  # from the committed soccfg snapshot
 
@@ -24,20 +24,20 @@ def test_ge_pi_from_calibration(dev):
     assert p.line == LineRef("qubit", "drive")
     assert p.freq_mhz == pytest.approx(dev.calib.qubit.f_ge)
     assert p.envelope == Gaussian(sigma_us=dev.calib.qubit.pulses["pi_ge"].sigma)
-    # D23: gain is a v2 FRACTION, not the int code 3289
-    assert p.gain == pytest.approx(gain_int_to_frac(3289, MAXV))
-    assert p.gain == pytest.approx(3289 / MAXV)
-    assert p.gain != 3289
+    # D23: gain is a v2 FRACTION, not the int code 8192
+    assert p.gain == pytest.approx(gain_int_to_frac(8192, MAXV))
+    assert p.gain == pytest.approx(8192 / MAXV)
+    assert p.gain != 8192
 
 
 def test_ge_hpi_and_ef_pi_use_right_freq_and_gain(dev):
     hpi = dev.qubit.ge_hpi()
     assert hpi.freq_mhz == pytest.approx(dev.calib.qubit.f_ge)
-    assert hpi.gain == pytest.approx(1629 / MAXV)
+    assert hpi.gain == pytest.approx(4096 / MAXV)
 
     ef = dev.qubit.ef_pi()
     assert ef.freq_mhz == pytest.approx(dev.calib.qubit.f_ef)  # ef transition, not ge
-    assert ef.gain == pytest.approx(3038 / MAXV)
+    assert ef.gain == pytest.approx(7600 / MAXV)
 
 
 def test_overrides(dev):

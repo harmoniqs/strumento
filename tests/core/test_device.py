@@ -10,7 +10,7 @@ from strumento.core.device import Device
 from strumento.core.wiring import LineRef
 from strumento.packs.cqed.library.transmon import TransmonOps
 
-YAML = Path(__file__).parents[2] / "devices" / "schuster_multimode" / "device.yaml"
+YAML = Path(__file__).parents[2] / "devices" / "multimode_demo" / "device.yaml"
 
 
 def test_load_resolves_qubit_drive():
@@ -21,9 +21,9 @@ def test_load_resolves_qubit_drive():
 
 def test_calibration_populated():
     dev = Device.load(YAML)
-    assert dev.calib.qubit.f_ge == pytest.approx(3562.6105332943075)
-    assert dev.calib.qubit.pulses["pi_ge"].gain == 3289
-    assert dev.calib.readout.frequency == pytest.approx(749.4328673317561)
+    assert dev.calib.qubit.f_ge == pytest.approx(4000.0)
+    assert dev.calib.qubit.pulses["pi_ge"].gain == 8192
+    assert dev.calib.readout.frequency == pytest.approx(750.0)
 
 
 def test_soccfg_snapshot_is_plain_dict():
@@ -36,8 +36,8 @@ def test_soccfg_snapshot_is_plain_dict():
 
 def test_topology_composed_and_namespace_bound():
     dev = Device.load(YAML)
-    # 1 transmon + 1 manipulate + 7 storage + coupler + readout = 11 elements
-    assert len(dev.elements) == 11
+    # 1 transmon + 1 manipulate + 2 storage + coupler + readout = 6 elements
+    assert len(dev.elements) == 6
     # D21: dev.qubit is a TransmonOps bound to the *named* transmon element
     assert isinstance(dev.qubit, TransmonOps)
     assert dev.qubit.element is dev.elements["qubit"]

@@ -108,7 +108,7 @@ def test_quantize_realizes_to_dac_grid():
     import json
     from qick import QickConfig
 
-    snap = Path(__file__).parents[2] / "devices" / "schuster_multimode" / "soccfg_snapshot.json"
+    snap = Path(__file__).parents[2] / "devices" / "_fixtures" / "soccfg_v1_zcu216.json"
     soccfg = QickConfig(json.loads(snap.read_text()))
     r = quantize(_pulse(gain=0.1, freq=3562.6105), soccfg, _wiring())
     assert r.freq_mhz_actual == pytest.approx(3562.6105, abs=1e-3)  # grid-snapped, near-exact

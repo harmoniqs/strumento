@@ -1,9 +1,9 @@
 # qick tProc-v2 API notes (Task 0, spec R2/D25)
 
 Verified against **qick 0.2.291** (installed to match the board's soccfg `sw_version`, so
-`QickConfig` builds with no version-mismatch warning). Confirms Sho Uemura's PR #5 review and
-his `meeg/qick_demos_sho/tprocv2/00_intro.ipynb`. Everything below runs **offline, no board**,
-from the committed `devices/schuster_multimode/soccfg_snapshot.json`.
+`QickConfig` builds with no version-mismatch warning). Cross-checked against the upstream
+[qick tProc-v2 demo notebooks](https://github.com/openquantumhardware/qick). Everything below runs **offline, no board**,
+from the committed `devices/_fixtures/soccfg_v1_zcu216.json`.
 
 ## Offline config
 
