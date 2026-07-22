@@ -46,12 +46,12 @@ class DeviceBuilder:
 
     # -- authoring -------------------------------------------------------------------
 
-    def add(self, type_name: str, name: str, **fields) -> "DeviceBuilder":
+    def add(self, type_name: str, name: str, **fields) -> DeviceBuilder:
         """Add a named element of a pack-registered type (validated against the pack at build)."""
         self._topology.append({"type": type_name, "name": name, **fields})
         return self
 
-    def wire(self, line_name: str, **generators) -> "DeviceBuilder":
+    def wire(self, line_name: str, **generators) -> DeviceBuilder:
         """Wire a line's generators; each keyword is the generator's **role**.
 
         Values are ``Generator`` instances (role filled from the key) or plain field dicts.
@@ -70,12 +70,12 @@ class DeviceBuilder:
         self._lines[line_name] = gens
         return self
 
-    def readout(self, **fields) -> "DeviceBuilder":
+    def readout(self, **fields) -> DeviceBuilder:
         """Set the readout wiring (``dac_ch``, ``adc_chs``, …)."""
         self._readout = fields
         return self
 
-    def coupling(self, a: str, b: str, *, form, mediated_by: str | None = None) -> "DeviceBuilder":
+    def coupling(self, a: str, b: str, *, form, mediated_by: str | None = None) -> DeviceBuilder:
         """Declare a typed interaction edge between two elements (D31).
 
         ``form`` is a pack-registered coupling form (e.g. ``BeamSplitter``); ``mediated_by`` ties
@@ -84,7 +84,7 @@ class DeviceBuilder:
         self._couplings.append({"a": a, "b": b, "form": form, "mediated_by": mediated_by})
         return self
 
-    def soccfg(self, snapshot: dict) -> "DeviceBuilder":
+    def soccfg(self, snapshot: dict) -> DeviceBuilder:
         """Attach a soccfg snapshot (as ``Device.load`` would from the instance file)."""
         self._soccfg = snapshot
         return self

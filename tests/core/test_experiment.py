@@ -4,7 +4,7 @@ The orchestration is driven with a fake Runner, so it needs no qick/board. (The 
 construct+acquire path is exercised by the v2-gated slice e2e.)
 """
 
-from strumento.core.experiment import Experiment, ExperimentOutcome, Runner
+from strumento.core.experiment import Experiment, ExperimentOutcome
 from strumento.core.fitters import FitResult
 from strumento.core.pulses import Seq
 from strumento.core.result import MeasurementResult

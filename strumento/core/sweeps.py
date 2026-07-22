@@ -14,8 +14,8 @@ This module is **pure**: no ``qick`` import.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import numpy as np
 
@@ -41,7 +41,7 @@ class Sweep:
             return np.asarray(self._lab_axis)
         return np.linspace(self.start, self.stop, self.points)
 
-    def mapped(self, fn: Callable[[float], float]) -> "Sweep":
+    def mapped(self, fn: Callable[[float], float]) -> Sweep:
         """Return a new Sweep with ``start``/``stop`` transformed by ``fn`` (e.g. int-code →
         fraction), pinning the current ``xpts`` as the lab-native display axis (D23)."""
         return Sweep(

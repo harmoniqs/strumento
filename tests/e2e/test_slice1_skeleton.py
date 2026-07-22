@@ -19,7 +19,7 @@ from _v2gate import V2_SOCCFG, requires_v2_soccfg  # noqa: E402
 
 from strumento.core.compiler import Compiler, quantize  # noqa: E402
 from strumento.core.device import Device  # noqa: E402
-from strumento.core.pulses import Gaussian, Seq  # noqa: E402
+from strumento.core.pulses import Seq  # noqa: E402
 
 YAML = Path(__file__).parents[2] / "devices" / "multimode_demo" / "device.yaml"
 LOOPBACK_YAML = Path(__file__).parents[2] / "devices" / "loopback_demo" / "device.yaml"

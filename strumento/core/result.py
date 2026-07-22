@@ -42,7 +42,7 @@ class MeasurementResult:
         """Return ``(xpts, avgi, avgq)`` — the shape legacy analysis code expects."""
         return (self.xpts, self.avgi, self.avgq)
 
-    def postselect(self, *, lanes: tuple[str, ...] | None = None) -> "MeasurementResult":
+    def postselect(self, *, lanes: tuple[str, ...] | None = None) -> MeasurementResult:
         """Post-select on the enabled herald lanes (logical AND across lanes).
 
         Slice-1 stub: with no ``herald_lanes`` this is the identity. The full per-shot masking

@@ -34,7 +34,7 @@ class TransmonOps:
     ``length`` (µs) overrides; ``None`` means "take it from calibration".
     """
 
-    def __init__(self, device: object, element: "Transmon") -> None:
+    def __init__(self, device: object, element: Transmon) -> None:
         self.device = device
         self.element = element
 
