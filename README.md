@@ -70,6 +70,7 @@ import). Details in **[docs/plan.md](docs/plan.md)**.
 | Doc | What's in it |
 |---|---|
 | **[getting-started.md](docs/getting-started.md)** | Hands-on walkthrough with runnable examples — device, pulses, sequences, sweeps, fitting, experiments, the escape hatch, transport. |
+| **[cqed-cookbook.md](docs/cqed-cookbook.md)** | A tour of the `cqed` pack by example — pulses, sweeps, readout, fitting, device authoring, couplings, Hamiltonian export. Every snippet verified against the live API. |
 | **[packs-and-devices.md](docs/packs-and-devices.md)** | How elements compose into a device, the `DeviceBuilder`, typed couplings + Hamiltonian export, and **how to add a modality pack**. |
 | **[spec.md](docs/spec.md)** | The design of record — every decision (D1–D31), with rationale. |
 | **[plan.md](docs/plan.md)** | The tracer-bullet slices and task breakdown. |
