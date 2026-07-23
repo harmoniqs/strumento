@@ -37,7 +37,9 @@ def test_psb_readout_is_a_readout_kind():
     assert float(r.reduce(signal)) == pytest.approx(0.5)
 
 
-def test_no_ops_bound_yet():
+def test_ops_now_bound():
+    from strumento.packs.spin.library.ld import LDOps
+
     dev = Device.load(YAML)
-    assert Dot.ops_cls is None
-    assert not hasattr(dev, "q0")
+    assert Dot.ops_cls is LDOps
+    assert isinstance(dev.q0, LDOps)
