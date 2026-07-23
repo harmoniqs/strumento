@@ -30,7 +30,7 @@ dev = Device.load("devices/multimode_demo/device.yaml")
 print(dev)
 # Device(pack='strumento.packs.cqed', elements=['S1', ..., 'coupler', 'manipulate', 'qubit', 'readout'])
 
-dev.calib.qubit.f_ge          # 3562.6105  (MHz)
+dev.calib.qubit.f_ge          # 4000.0  (MHz)
 dev.wiring.lines.keys()       # qubit, manipulate, storage, coupler
 ```
 
@@ -41,7 +41,7 @@ not a single experiment.
 
 ```python
 from strumento import LineRef
-dev.wiring.resolve(LineRef("qubit", "drive"), freq_mhz=3562).dac_ch    # -> 2
+dev.wiring.resolve(LineRef("qubit", "drive"), freq_mhz=4000).dac_ch    # -> 2
 ```
 
 ## 3. Build a pulse
@@ -51,13 +51,13 @@ lookups from a string bank:
 
 ```python
 pi = dev.qubit.ge_pi()
-pi.freq_mhz      # 3562.6105     — the g–e frequency from calib
-pi.gain          # 0.10037844…   — a v2 FRACTION
-pi.envelope      # Gaussian(sigma_us=0.035)
+pi.freq_mhz      # 4000.0        — the g–e frequency from calib
+pi.gain          # 0.25001526…   — a v2 FRACTION
+pi.envelope      # Gaussian(sigma_us=0.030)
 ```
 
-That gain is worth a look: the calibration stores the lab-native int code `3289`, and the cqed
-factory converts it to a fraction (`3289 / 32766`) at the pack boundary — so the compiler only ever
+That gain is worth a look: the calibration stores the lab-native int code `8192`, and the cqed
+factory converts it to a fraction (`8192 / 32766`) at the pack boundary — so the compiler only ever
 sees v2 fractions, and the v1→v2 gain-units bug can't happen. Override any field:
 
 ```python

@@ -36,7 +36,7 @@ topology:
   - {type: Coupler, name: coupler}
   - {type: ReadoutResonator, name: readout}
 calibration:
-  qubit: {f_ge: 3562.61, pulses: {pi_ge: {gain: 3289, sigma: 0.035}}}
+  qubit: {f_ge: 4000.0, pulses: {pi_ge: {gain: 8192, sigma: 0.030}}}
   readout: {frequency: 749.43, gain: 800, readout_length: 1.5, trig_offset: 450, relax_delay: 2500}
 ```
 

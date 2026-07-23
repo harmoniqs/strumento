@@ -147,6 +147,26 @@ class Seq:
     def __init__(self, ops: list[Op] | None = None) -> None:
         self.ops: list[Op] = list(ops) if ops is not None else []
 
+    # -- accumulator + context ergonomics ------------------------------------------------
+    # Long sequences read (and diff) better line-by-line than as one chained expression, so
+    # ``s += op`` appends in place (a Seq operand extends), and ``with Seq() as s:`` scopes
+    # the construction block. Chaining still works everywhere; ``a + b`` (below) remains the
+    # non-mutating concatenation. Deliberately NO ``seq + pulse`` sugar — mixing + and +=
+    # semantics across operand types invites confusion.
+
+    def __iadd__(self, other: Op | Seq) -> Seq:
+        if isinstance(other, Seq):
+            self.ops.extend(other.ops)
+        else:
+            self.ops.append(other)
+        return self
+
+    def __enter__(self) -> Seq:
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        return False
+
     def play(self, item: Pulse | Segment | Seq) -> Seq:
         """Append a pulse or segment; a ``Seq`` is *flattened* in (its ops are spliced)."""
         if isinstance(item, Seq):

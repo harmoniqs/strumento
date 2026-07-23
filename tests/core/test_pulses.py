@@ -8,6 +8,7 @@ hashable ⇒ the compiler can dedup on ``(generator, envelope)`` for free (spec 
 from strumento.core.pulses import (
     Arb,
     Const,
+    Delay,
     FlatTop,
     Gaussian,
     Measure,
@@ -87,3 +88,43 @@ def test_measure_carries_kwargs():
     m = s.ops[0]
     assert isinstance(m, Measure)
     assert m.kind == "dispersive" and m.params["shots"] == 1000
+
+
+# -- ergonomics: += accumulator and with-context (design-review additions) ---------------
+
+
+def test_iadd_accumulates_ops_line_by_line():
+    s = Seq()
+    s += _p()
+    s += Delay(0.5)
+    s += _p()
+    kinds = [type(op).__name__ for op in s.ops]
+    assert kinds == ["Pulse", "Delay", "Pulse"]
+
+
+def test_iadd_seq_extends_in_place():
+    s = Seq()
+    s += Seq().play(_p()).wait(0.1)
+    s += Measure()
+    kinds = [type(op).__name__ for op in s.ops]
+    assert kinds == ["Pulse", "Delay", "Measure"]
+    # += returns the same object (an accumulator, not a copy)
+    t = s
+    t += _p()
+    assert t is s and len(s.ops) == 4
+
+
+def test_with_context_returns_the_seq():
+    with Seq() as s:
+        s += _p()
+        s.wait(0.2)  # chaining still works inside the block
+        s += Measure()
+    kinds = [type(op).__name__ for op in s.ops]
+    assert kinds == ["Pulse", "Delay", "Measure"]
+
+
+def test_plus_still_concatenates_without_mutation():
+    a = Seq().play(_p())
+    b = Seq().measure()
+    c = a + b
+    assert len(a.ops) == 1 and len(b.ops) == 1 and len(c.ops) == 2

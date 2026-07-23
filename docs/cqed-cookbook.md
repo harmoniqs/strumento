@@ -32,14 +32,14 @@ from strumento import Device, LineRef
 
 dev = Device.load("devices/multimode_demo/device.yaml")
 
-dev                                   # Device(pack='strumento.packs.cqed', elements=['S1', ... 'qubit', 'readout'])
-dev.calib.qubit.f_ge                  # 3562.6105332943075   (MHz)
+dev                                   # Device(pack='strumento.packs.cqed', elements=['S1', 'S2', 'coupler', 'manipulate', 'qubit', 'readout'])
+dev.calib.qubit.f_ge                  # 4000.0   (MHz)
 list(dev.wiring.lines)                # ['qubit', 'manipulate', 'storage', 'coupler']
-dev.wiring.resolve(LineRef("qubit", "drive"), freq_mhz=3562).dac_ch   # 2
+dev.wiring.resolve(LineRef("qubit", "drive"), freq_mhz=4000).dac_ch   # 2
 ```
 
 `dev.qubit` is bound because the instance YAML names a transmon `qubit` (a different YAML yields
-`dev.q0`/`dev.cavity`). The 7 storage modes (`S1…S7`) share one physical line.
+`dev.q0`/`dev.cavity`). The storage modes (`S1`, `S2`) share one physical line.
 
 ## 2. Single-qubit pulses
 
@@ -47,14 +47,14 @@ Pulses are typed values computed from calibration — factory methods on the tra
 
 ```python
 p = dev.qubit.ge_pi()
-p.freq_mhz        # 3562.6105332943075   — the g–e frequency, from calib
-p.gain            # 0.10037844…          — a v2 FRACTION (calib int code 3289 / maxv 32766)
-p.envelope        # Gaussian(sigma_us=0.035)
+p.freq_mhz        # 4000.0               — the g–e frequency, from calib
+p.gain            # 0.25001526…          — a v2 FRACTION (calib int code 8192 / maxv 32766)
+p.envelope        # Gaussian(sigma_us=0.030)
 
 dev.qubit.ge_pi(phase=90).phase_deg     # 90     — override the phase (degrees)
 dev.qubit.ge_pi(gain=0.2).gain          # 0.2    — an explicit gain is a raw v2 fraction, used as-is
-dev.qubit.ge_hpi().gain                 # 0.049716…   — a π/2 (calib code 1629)
-dev.qubit.ef_pi().freq_mhz              # 3419.036012060942   — the e–f transition (uses f_ef)
+dev.qubit.ge_hpi().gain                 # 0.12500763…   — a π/2 (calib code 4096)
+dev.qubit.ef_pi().freq_mhz              # 3820.0   — the e–f transition (uses f_ef)
 ```
 
 ## 3. Sequences
@@ -62,7 +62,7 @@ dev.qubit.ef_pi().freq_mhz              # 3419.036012060942   — the e–f tran
 `Seq` is a fluent builder over an ordered op list:
 
 ```python
-from strumento import Seq
+from strumento import Delay, Measure, Seq
 
 seq = Seq().play(dev.qubit.ge_pi()).wait(0.5).measure()
 [type(op).__name__ for op in seq.ops]        # ['Pulse', 'Delay', 'Measure']   (wait is in µs)
@@ -76,6 +76,51 @@ Seq().play(dev.qubit.ge_pi()).raw(lambda prog: prog.delay_auto(0.01)).measure()
 
 # .play also flattens a nested Seq; Seq + Seq concatenates without mutating either
 ```
+
+### Three ways to write a sequence
+
+Chaining is great for one-liners — and **diffs terribly** once sequences grow: change one pulse
+in a long chain and the whole expression is one changed line. For anything long-lived, build
+line-by-line with the `+=` accumulator (each op is its own line → each change is its own diff
+line), optionally scoped in a `with` block:
+
+```python
+# 1. chain — one-liners and quick notebook cells
+seq = Seq().play(dev.qubit.ge_pi()).wait(0.5).measure()
+
+# 2. accumulator — diff-friendly, and ops can be added across notebook cells
+seq = Seq()
+seq += dev.qubit.ge_pi()
+seq += Delay(0.5)
+seq += Measure()
+
+# 3. with-block — same accumulator, visually scoped
+with Seq() as seq:
+    seq += dev.qubit.ge_hpi()
+    seq.wait(0.2)                # chaining methods still work on the same object
+    seq += dev.qubit.ge_hpi(phase=90)
+    seq.measure()
+```
+
+All three produce identical `Seq` objects; mix freely. (`a + b` concatenates two sequences
+without mutating either; there is deliberately no `seq + pulse` form.)
+
+### Where did the config→param boilerplate go?
+
+In register-level tProc-v1 stacks, most of a program is bracket-indexing a config dict into
+flat pulse parameters — ~10 lines per pulse of `cfg['device']['qubit']['pulses']['pi_ge'][...]`
+plumbing plus unit conversions. In strumento that mapping **is the factory**: the calibration
+schema is typed, the factory reads it, and unit conversion happens once at the pack boundary:
+
+| tProc-v1 idiom (per pulse) | strumento |
+|---|---|
+| gather freq/gain/sigma from nested cfg keys | `dev.qubit.ge_pi()` |
+| `freq2reg` / `us2cycles` / `deg2reg` by hand | compiler owns all unit conversion |
+| int gain code pasted into registers | factory converts int code → v2 fraction (D23) |
+| override = mutate the cfg dict, hope nothing else reads it | `dev.qubit.ge_pi(gain=…, freq=…)` kwargs |
+
+So the "load pulses in one line" wish is satisfied structurally — one factory call per pulse,
+overrides as keywords, sweeps as values.
 
 ## 4. Sweeps
 
@@ -107,9 +152,9 @@ from strumento.core.compiler import quantize
 
 soccfg = QickConfig(dev.soccfg_snapshot)
 r = quantize(dev.qubit.ge_pi(), soccfg, dev.wiring)
-r.freq_mhz_actual   # 3562.6105   — grid-snapped
-r.gain_frac         # 0.100378    — realized to amplitude resolution
-r.cycles            # 56          — a 4σ (0.14 µs) Gaussian window
+r.freq_mhz_actual   # 3999.99999962   — grid-snapped
+r.gain_frac         # 0.25001526  — realized to amplitude resolution
+r.cycles            # 48          — a 4σ (0.12 µs) Gaussian window
 ```
 
 ## 6. Running on the mock
@@ -117,19 +162,24 @@ r.cycles            # 56          — a 4σ (0.14 µs) Gaussian window
 Running goes through `StrumentoProgram`, which *is* an `AveragerProgramV2`:
 
 ```python
-from strumento.core.program import StrumentoProgram
 from strumento.core.mock import MockQickSocV2
+from strumento.core.program import StrumentoProgram
 
-soc = MockQickSocV2.from_snapshot("devices/_fixtures/soccfg_v2.json")
-prog = StrumentoProgram(dev, seq=rabi, reps=1000, soc=soc)
-result = prog.acquire(soc)                # -> MeasurementResult
+# loopback_demo matches the committed tProc-v2 testbench config (1 gen + 1 readout),
+# so this runs out of the box — real v2 assembly, no board.
+lb = Device.load("devices/loopback_demo/device.yaml")
+soc = MockQickSocV2.from_snapshot("devices/_fixtures/soccfg_v2_testbench.json")
+
+rabi = Seq().play(lb.qubit.ge_pi(gain=Sweep("amp", 0, 30000, 51))).measure()
+result = StrumentoProgram(lb, seq=rabi, reps=1000, soc=soc).acquire(soc, progress=False)
 xpts, avgi, avgq = result.as_tuple()      # xpts is the 0..30000 int-code axis
 ```
 
-> ⚠️ **Needs a tProc-v2 soccfg.** `StrumentoProgram` assembles a real `AveragerProgramV2`
-> (`qick_processor`). The committed board snapshot is tProc-**v1**, so drop a v2 `dump_cfg()` at
-> `devices/_fixtures/soccfg_v2.json` to run this (see `devices/_fixtures/README.md`). Everything
-> above (build, sweep, quantize) and the analysis below need no board.
+> This assembles a **real** `AveragerProgramV2` (`qick_processor`) against the committed
+> testbench snapshot — install the `qick` extra and it runs anywhere, including CI. Drop your own
+> board's `dump_cfg()` at `devices/_fixtures/soccfg_v2.json` and the v2-gated tests use it
+> instead (see `devices/_fixtures/README.md`). Everything above (build, sweep, quantize) and the
+> analysis below need no `qick` at all.
 
 ## 7. Readout — `DispersiveIQ`
 
@@ -283,8 +333,8 @@ at the pack boundary (this is the one place the v1→v2 gain-units bug can't sne
 ```python
 from strumento.packs.cqed.calibration import gain_int_to_frac
 
-gain_int_to_frac(3289, 32766)     # 0.100378…   — calib code 3289 at maxv 32766
-dev.calib.qubit.pulses["pi_ge"]   # PulseCal(gain=3289, sigma=0.035, length=0.0, type='gauss')
+gain_int_to_frac(8192, 32766)     # 0.25001526…   — calib code 8192 at maxv 32766
+dev.calib.qubit.pulses["pi_ge"]   # PulseCal(gain=8192, sigma=0.03, length=0.0, type='gauss')
 dev.calib.readout.frequency       # 749.4328673317561
 ```
 
