@@ -12,6 +12,7 @@ class RecordingProgram:
     def declare_gen(self, ch, **kw):        self.calls.append(("declare_gen", ch, kw))
     def add_gauss(self, ch, name, **kw):    self.calls.append(("add_gauss", ch, name, kw))
     def add_pulse(self, ch, name, **kw):    self.calls.append(("add_pulse", ch, name, kw))
+    def add_envelope(self, ch, name, **kw): self.calls.append(("add_envelope", ch, name, kw))
     def pulse(self, ch, name, t=0, **kw):   self.calls.append(("pulse", ch, name, t))
     def delay(self, t, **kw):               self.calls.append(("delay", t))
     def trigger(self, ros=None, t=0, **kw): self.calls.append(("trigger", tuple(ros or ()), t))

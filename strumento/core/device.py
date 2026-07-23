@@ -65,6 +65,7 @@ class Device:
         elements: dict[str, Any],
         pack: Any,
         couplings: list | tuple = (),
+        aliases: dict | None = None,
     ) -> None:
         self.wiring = wiring
         self.calib = calib
@@ -74,6 +75,7 @@ class Device:
         self.couplings = list(couplings)  # typed interaction edges (D31)
         self._validate_wiring()
         self._bind_namespaces()
+        self._bind_aliases(aliases or {})
 
     @classmethod
     def load(cls, path: str | Path) -> Device:
@@ -100,6 +102,7 @@ class Device:
             elements=elements,
             pack=pack,
             couplings=couplings,
+            aliases=raw.get("aliases", {}),
         )
 
     # -- internals ---------------------------------------------------------------------
@@ -128,6 +131,29 @@ class Device:
             if name in _RESERVED or hasattr(self, name):
                 raise ValueError(f"element name {name!r} collides with a reserved Device attribute")
             setattr(self, name, ops_cls(self, el))
+
+    def _bind_aliases(self, aliases: dict) -> None:
+        """Bind instance-declared alias namespaces (D21): ``dev.<alias>`` -> a pack alias-ops
+        class over a named element (e.g. ``sideband`` -> the transmon's sideband generator).
+
+        The pack opts in by exposing ``ALIAS_OPS: dict[str, type]``; the instance YAML says
+        ``aliases: {<alias>: {element: <name>, ops: <key>}}``.
+        """
+        if not aliases:
+            return
+        alias_ops = getattr(self.pack, "ALIAS_OPS", {})
+        for alias, spec in aliases.items():
+            ops_key, el_name = spec["ops"], spec["element"]
+            if ops_key not in alias_ops:
+                raise KeyError(
+                    f"pack {self.pack.__name__!r} has no alias ops {ops_key!r} "
+                    f"(have {sorted(alias_ops)})"
+                )
+            if el_name not in self.elements:
+                raise KeyError(f"alias {alias!r} points at unknown element {el_name!r}")
+            if alias in _RESERVED or hasattr(self, alias):
+                raise ValueError(f"alias name {alias!r} collides with a Device attribute")
+            setattr(self, alias, alias_ops[ops_key](self, self.elements[el_name]))
 
     def to_operator_model(self, *, frame: str = "rotating", cutoffs: dict[str, int], include=None):
         """Export topology + couplings + calibration as a framework-neutral Hamiltonian spec (D31).

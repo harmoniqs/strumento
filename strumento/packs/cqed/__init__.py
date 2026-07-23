@@ -27,9 +27,14 @@ from strumento.packs.cqed.elements import (
     ReadoutResonator,
     Transmon,
 )
+from strumento.packs.cqed.library.sideband import SidebandOps
 
 #: The pack's calibration schema (consumed by ``core.device.load``).
 CALIBRATION = Calibration
+
+#: Ops classes an instance may bind under an alias name via its ``aliases:`` section (D21):
+#: e.g. ``aliases: {sideband: {element: qubit, ops: sideband}}`` -> ``dev.sideband``.
+ALIAS_OPS = {"sideband": SidebandOps}
 
 
 def compose_elements(topology: list[dict], calib: Calibration) -> dict[str, object]:
@@ -47,7 +52,8 @@ def compose_elements(topology: list[dict], calib: Calibration) -> dict[str, obje
             out[name] = Transmon(name=name, f_ge=qc.f_ge, f_ef=qc.f_ef, pulses=qc.pulses)
         elif kind == "BosonicMode":
             out[name] = BosonicMode(
-                name=name, role=entry.get("role", "storage"), line=entry.get("line")
+                name=name, role=entry.get("role", "storage"), line=entry.get("line"),
+                freq_mhz=entry.get("freq_mhz"),
             )
         elif kind == "Coupler":
             out[name] = Coupler(name=name)

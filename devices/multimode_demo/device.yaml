@@ -33,17 +33,26 @@ wiring:
       generators:
         - {role: low,  dac_ch: 1, nyquist: 1, band_hz: [0.0, 1.8e9]}
         - {role: high, dac_ch: 1, nyquist: 1, band_hz: [1.8e9, 1.0e12]}
+    readout:
+      name: readout
+      generators:
+        - {role: probe, dac_ch: 5, nyquist: 2, gen_type: full}
   readout:
     dac_ch: 5
     adc_chs: [0]
 
 topology:
   - {type: Transmon, name: qubit}
-  - {type: BosonicMode, name: manipulate, role: manipulate, line: manipulate}
-  - {type: BosonicMode, name: S1, role: storage, line: storage}
-  - {type: BosonicMode, name: S2, role: storage, line: storage}
+  - {type: BosonicMode, name: manipulate, role: manipulate, line: manipulate, freq_mhz: 5200.0}
+  - {type: BosonicMode, name: S1, role: storage, line: storage, freq_mhz: 6000.0}
+  - {type: BosonicMode, name: S2, role: storage, line: storage, freq_mhz: 6150.0}
   - {type: Coupler, name: coupler}
   - {type: ReadoutResonator, name: readout}
+
+# Instance-declared alias namespaces (D21): dev.sideband drives the qubit line's
+# sideband generator with the multiphoton-ladder ops.
+aliases:
+  sideband: {element: qubit, ops: sideband}
 
 calibration:
   qubit:
@@ -62,3 +71,17 @@ calibration:
     relax_delay: 500
     phase: 0.0
     threshold: 0.0
+  multiphoton:
+    f0-g1:
+      pi:
+        - {frequency: 2100.0, gain: 12000, length: 0.8, ramp_sigma: 0.01}
+        - {frequency: 2088.0, gain: 12500, length: 0.85, ramp_sigma: 0.01}
+      hpi:
+        - {frequency: 2100.0, gain: 12000, length: 0.4, ramp_sigma: 0.01}
+  swaps:
+    manipulate-S1: {frequency: 800.0,  gain: 9000, length: 2.4, ramp_sigma: 0.01}
+    manipulate-S2: {frequency: 950.0,  gain: 9500, length: 2.6, ramp_sigma: 0.01}
+  modes:
+    manipulate:
+      revival_time: [1.6, 0.8]
+      displace: {gain: 6000, sigma: 0.040, type: gauss}

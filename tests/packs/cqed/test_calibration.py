@@ -72,5 +72,8 @@ def test_element_ops_cls_is_topology_derived():
     # D21: element TYPE -> ops class (instance name is irrelevant here).
     assert Transmon.ops_cls is TransmonOps
     # element types whose ops land in a later slice have no ops class bound yet
-    assert BosonicMode.ops_cls is None
-    assert Coupler.ops_cls is None
+    from strumento.packs.cqed.library.coupler import CouplerOps
+    from strumento.packs.cqed.library.mode import ModeOps
+
+    assert BosonicMode.ops_cls is ModeOps
+    assert Coupler.ops_cls is CouplerOps

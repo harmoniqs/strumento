@@ -22,6 +22,8 @@ from typing import ClassVar
 import numpy as np
 
 from strumento.core.wiring import LineRef
+from strumento.packs.cqed.library.coupler import CouplerOps
+from strumento.packs.cqed.library.mode import ModeOps
 from strumento.packs.cqed.library.transmon import TransmonOps
 
 _TWO_PI = 2 * np.pi
@@ -29,7 +31,8 @@ _TWO_PI = 2 * np.pi
 
 @dataclass
 class Transmon:
-    """A transmon qubit. Drives its ``drive`` role; its sideband generator is added in Task 13."""
+    """A transmon qubit. Drives its ``drive`` role; its sideband generator binds via an
+    instance-declared ``aliases:`` entry (``SidebandOps``)."""
 
     name: str
     f_ge: float
@@ -69,7 +72,7 @@ class BosonicMode:
     freq_mhz: float | None = None
     kerr_mhz: float = 0.0
 
-    ops_cls: ClassVar[type | None] = None
+    ops_cls: ClassVar[type | None] = ModeOps
 
     def lines(self) -> list[LineRef]:
         return [LineRef(self.line or self.name, "main")]
@@ -87,11 +90,11 @@ class BosonicMode:
 
 @dataclass
 class Coupler:
-    """A tunable coupler / flux line, band-split into low/high generators. Ops land in Task 13."""
+    """A tunable coupler / flux line, band-split into low/high generators."""
 
     name: str = "coupler"
 
-    ops_cls: ClassVar[type | None] = None
+    ops_cls: ClassVar[type | None] = CouplerOps
 
     def lines(self) -> list[LineRef]:
         return [LineRef(self.name, "low"), LineRef(self.name, "high")]

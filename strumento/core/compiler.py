@@ -10,8 +10,8 @@ recording-fake both satisfy the same duck-typed interface.
 Two design points from the spec:
   * **Envelope registry (D22).** Lowering dispatches on ``type(envelope)`` through a registry
     (``@lowers(Gaussian)``), never an ``if shape == …`` ladder. A pack extends the compiler by
-    registering its envelope + lowering (``tweezer`` registers ``PolyChirp`` there). Slice 1
-    registers only ``Gaussian``; ``FlatTop``/``Arb`` land in later slices.
+    registering its envelope + lowering (``tweezer`` registers ``PolyChirp`` there). Core registers
+    ``Gaussian``/``FlatTop``/``Const``/``Arb``; packs add their own (``tweezer`` adds ``PolyChirp``).
   * **Gain (D23).** ``Pulse.gain`` is already a v2 fraction by the time it reaches the compiler
     (the cqed factory converted it), so the compiler passes ``gain`` straight through — no
     int→fraction step here.
@@ -24,7 +24,10 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
+import numpy as np
+
 from strumento.core.pulses import (
+    Arb,
     Const,
     Delay,
     FlatTop,
@@ -49,37 +52,110 @@ _GAUSS_LENGTH_SIGMAS = 4.0
 # Envelope lowering registry (D22)
 # --------------------------------------------------------------------------------------
 
-_LOWERINGS: dict[type, Callable[..., None]] = {}
+@dataclass(frozen=True)
+class EnvelopeLowering:
+    """How one envelope type reaches the hardware.
+
+    ``declare`` (optional) adds the envelope's sample data to the program once per
+    ``(generator, envelope)`` (e.g. ``add_gauss`` / ``add_envelope``); ``None`` means the shape
+    needs no waveform memory (``Const``). ``pulse_kwargs`` returns the ``add_pulse`` style
+    kwargs — it receives the live compiler so swept fields (e.g. a swept flat-top length) can be
+    resolved through :meth:`Compiler._field_value`.
+    """
+
+    declare: Callable[..., None] | None
+    pulse_kwargs: Callable[..., dict]
 
 
-def register_envelope(env_type: type, fn: Callable[..., None]) -> None:
-    """Register a lowering for an envelope type (packs call this to extend the compiler)."""
-    _LOWERINGS[env_type] = fn
+def _arb_style_kwargs(compiler: Compiler, env, env_name: str) -> dict:
+    return {"style": "arb", "envelope": env_name}
 
 
-def lowers(env_type: type):
-    """Decorator form of :func:`register_envelope`."""
+_LOWERINGS: dict[type, EnvelopeLowering] = {}
+
+
+def register_envelope(
+    env_type: type,
+    declare: Callable[..., None] | None = None,
+    *,
+    pulse_kwargs: Callable[..., dict] | None = None,
+) -> None:
+    """Register a lowering for an envelope type (packs call this to extend the compiler).
+
+    ``declare(program, ch, name, envelope)`` writes the envelope's samples (omit for shapes with
+    no waveform memory); ``pulse_kwargs(compiler, envelope, env_name)`` returns the ``add_pulse``
+    style kwargs (default: ``style="arb"`` referencing the declared envelope).
+    """
+    _LOWERINGS[env_type] = EnvelopeLowering(declare, pulse_kwargs or _arb_style_kwargs)
+
+
+def lowers(env_type: type, *, pulse_kwargs: Callable[..., dict] | None = None):
+    """Decorator form of :func:`register_envelope` (the decorated fn is the declare hook)."""
 
     def deco(fn):
-        _LOWERINGS[env_type] = fn
+        register_envelope(env_type, fn, pulse_kwargs=pulse_kwargs)
         return fn
 
     return deco
 
 
-def _lower_envelope(program, ch: int, name: str, envelope) -> None:
-    fn = _LOWERINGS.get(type(envelope))
-    if fn is None:
+def _lowering_for(envelope) -> EnvelopeLowering:
+    low = _LOWERINGS.get(type(envelope))
+    if low is None:
         raise TypeError(
             f"no lowering registered for envelope type {type(envelope).__name__!r}; "
             f"a pack must register_envelope() it before it can be compiled"
         )
-    fn(program, ch, name, envelope)
+    return low
 
 
 @lowers(Gaussian)
 def _lower_gaussian(program, ch, name, env: Gaussian) -> None:
     program.add_gauss(ch=ch, name=name, sigma=env.sigma_us, length=env.sigma_us * _GAUSS_LENGTH_SIGMAS)
+
+
+def _flattop_kwargs(compiler: Compiler, env: FlatTop, env_name: str) -> dict:
+    # v2 flat_top: the declared envelope is the (gaussian) ramp; the flat part is `length`
+    return {"style": "flat_top", "envelope": env_name, "length": compiler._field_value(env.length_us)}
+
+
+@lowers(FlatTop, pulse_kwargs=_flattop_kwargs)
+def _lower_flattop(program, ch, name, env: FlatTop) -> None:
+    program.add_gauss(ch=ch, name=name, sigma=env.ramp_sigma_us, length=env.ramp_sigma_us * _GAUSS_LENGTH_SIGMAS)
+
+
+def _const_kwargs(compiler: Compiler, env: Const, env_name: str) -> dict:
+    return {"style": "const", "length": compiler._field_value(env.length_us)}
+
+
+register_envelope(Const, None, pulse_kwargs=_const_kwargs)
+
+
+@lowers(Arb)
+def _lower_arb(program, ch, name, env: Arb) -> None:
+    """Write an imported waveform (§6.5): normalized [-1, 1] samples -> DAC units.
+
+    Scaling uses the generator's ``maxv`` when the program carries a soccfg (the real path);
+    a bare recording fake gets the normalized samples unscaled. Sample counts are padded to the
+    generator's ``samps_per_clk`` grid so v2's envelope-length validator passes.
+    """
+    idata = np.asarray(env.idata, dtype=float)
+    qdata = np.asarray(env.qdata, dtype=float) if env.qdata is not None else None
+
+    soccfg = getattr(program, "soccfg", None)
+    if soccfg is not None:
+        gen = soccfg["gens"][ch]
+        maxv, spc = float(gen["maxv"]), int(gen.get("samps_per_clk", 1))
+        pad = (-len(idata)) % spc
+        if pad:
+            idata = np.pad(idata, (0, pad))
+            qdata = np.pad(qdata, (0, pad)) if qdata is not None else None
+        idata = idata * maxv
+        qdata = qdata * maxv if qdata is not None else None
+    kw = {"idata": idata}
+    if qdata is not None:
+        kw["qdata"] = qdata
+    program.add_envelope(ch=ch, name=name, **kw)
 
 
 def _envelope_length_us(envelope) -> float:
@@ -143,10 +219,12 @@ class Compiler:
 
         for p in pulses:
             ch = self._gen_ch(p)
+            low = _lowering_for(p.envelope)
             env_key = (ch, p.envelope)
             if env_key not in self._env_names:
                 name = f"env{ch}_{len(self._env_names)}"
-                _lower_envelope(self.program, ch, name, p.envelope)
+                if low.declare is not None:
+                    low.declare(self.program, ch, name, p.envelope)
                 self._env_names[env_key] = name
 
         for p in pulses:
@@ -154,11 +232,14 @@ class Compiler:
             pkey = self._pulse_key(p, ch)
             if pkey not in self._pulse_names:
                 name = f"pulse{ch}_{len(self._pulse_names)}"
+                low = _lowering_for(p.envelope)
+                style_kw = low.pulse_kwargs(self, p.envelope, self._env_names[(ch, p.envelope)])
                 self.program.add_pulse(
-                    ch=ch, name=name, style="arb",
-                    envelope=self._env_names[(ch, p.envelope)],
-                    freq=self._field_value(p.freq_mhz), phase=p.phase_deg,
+                    ch=ch, name=name,
+                    freq=self._field_value(p.freq_mhz),
+                    phase=self._field_value(p.phase_deg),
                     gain=self._field_value(p.gain),
+                    **style_kw,
                 )
                 self._pulse_names[pkey] = name
 
@@ -249,7 +330,10 @@ class Compiler:
         for op in seq.ops:
             pulses = op.pulses if isinstance(op, Segment) else ([op] if isinstance(op, Pulse) else [])
             for p in pulses:
-                for v in (p.gain, p.freq_mhz):
+                fields = [p.gain, p.freq_mhz, p.phase_deg]
+                if isinstance(getattr(p.envelope, "length_us", None), Sweep):
+                    fields.append(p.envelope.length_us)
+                for v in fields:
                     if isinstance(v, Sweep):
                         found.setdefault(v.name, v)
             if isinstance(op, Delay) and isinstance(op.duration_us, Sweep):
