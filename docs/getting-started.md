@@ -196,7 +196,6 @@ board, or the transport to it, changes nothing above this seam.
 
 ## Where to next
 
-- `docs/spec.md` — the full design of record and every decision (D1–D31).
-- `docs/plan.md` — the tracer-bullet slices and task breakdown.
+- [architecture.md](architecture.md) — the design: tenets, layers, seams, and the decision index (D1–D31).
 - `docs/qick-v2-api-notes.md` — the exact offline qick tProc-v2 API strumento builds against.
 - `devices/multimode_demo/README.md` — anatomy of a device instance.

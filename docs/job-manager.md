@@ -2,7 +2,7 @@
 
 How Strumento talks to a board when the board is remote or shared: a **job server** (a.k.a. the job
 manager) that Strumento reaches through a coarse transport, `JobServerSoc`. This is the resolved D14
-design — *job-server-native, no Pyro* (spec §14.2).
+design — *job-server-native, no object proxies* (D14; see [architecture.md](architecture.md)).
 
 ## The model — compile off-board, run on a dumb executor
 
@@ -137,5 +137,4 @@ through — mirroring the raw-qick escape hatch elsewhere in Strumento. You neve
   with a tProc-v2 soccfg (see `devices/_fixtures/README.md`). This doc's contract is what the board
   agent builds against, independent of that bridge.
 
-See also **[getting-started.md](getting-started.md)** §10 (the board seam) and **[spec.md](spec.md)**
-§14.2 for the full decision record.
+See also **[getting-started.md](getting-started.md)** §10 (the board seam) and **[architecture.md](architecture.md)** (the board seam).2 for the full decision record.

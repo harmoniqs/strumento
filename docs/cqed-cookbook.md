@@ -340,7 +340,7 @@ dev.calib.readout.frequency       # 749.4328673317561
 
 ## 14. Roadmap — not yet built
 
-These are designed (see `docs/spec.md`) but not yet implemented — they'll appear as the slices land,
+These are designed (see [architecture.md](architecture.md)) but not yet implemented — they'll appear as the work lands,
 following the same patterns above:
 
 - **Slice 3 — T1 / T2 Ramsey:** swept-delay experiments + `fit_exp` / `fit_decaysin_detuned`.
