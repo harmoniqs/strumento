@@ -25,6 +25,7 @@ class RecordingProgram:
     def add_envelope(self, ch, name, **kw): self.calls.append(("add_envelope", ch, name, kw))
     def pulse(self, ch, name, t=0, **kw):   self.calls.append(("pulse", ch, name, t))
     def delay(self, t, **kw):               self.calls.append(("delay", t))
+    def delay_auto(self, t=0, **kw):        self.calls.append(("delay_auto", t))
     def trigger(self, ros=None, t=0, **kw): self.calls.append(("trigger", tuple(ros or ()), t))
     def declare_readout(self, ch, length, **kw): self.calls.append(("declare_readout", ch, length))
 
@@ -139,3 +140,50 @@ def test_shared_dac_with_conflicting_nyquist_raises():
     )
     with pytest.raises(ValueError, match="Nyquist"):
         c.declare(seq)
+
+
+# -- timeline cursor model (docs/timeline.md) --------------------------------------------
+
+
+def test_sequential_pulses_advance_the_cursor():
+    """play(a).play(b) with no wait: each sequential pulse is followed by a duration-aware
+    delay_auto, so b plays after a (not overlapping at t=0)."""
+    wiring = _wiring()
+    prog = RecordingProgram()
+    c = Compiler(prog, wiring)
+    p = Pulse(line=LineRef("qubit", "drive"), freq_mhz=3562.6, gain=0.1, envelope=Gaussian(sigma_us=0.03))
+    seq = Seq().play(p).play(p)
+    c.declare(seq)
+    c.play(seq)
+    timeline = [k for k in prog.kinds() if k in ("pulse", "delay", "delay_auto", "trigger")]
+    # pulse, delay_auto, pulse, delay_auto — each play advances the cursor past itself
+    assert timeline == ["pulse", "delay_auto", "pulse", "delay_auto"]
+
+
+def test_absolute_start_us_does_not_advance_cursor():
+    wiring = _wiring()
+    prog = RecordingProgram()
+    c = Compiler(prog, wiring)
+    p = Pulse(line=LineRef("qubit", "drive"), freq_mhz=3562.6, gain=0.1,
+              envelope=Gaussian(sigma_us=0.03), start_us=1.5)
+    seq = Seq().play(p)
+    c.declare(seq)
+    c.play(seq)
+    timeline = [k for k in prog.kinds() if k in ("pulse", "delay", "delay_auto", "trigger")]
+    assert timeline == ["pulse"]                           # absolute placement opts out of auto-advance
+    assert next(c for c in prog.calls if c[0] == "pulse")[3] == 1.5   # played at t=start_us
+
+
+def test_segment_advances_once_past_the_longest():
+    wiring = _wiring()
+    prog = RecordingProgram()
+    c = Compiler(prog, wiring)
+    p1 = Pulse(line=LineRef("qubit", "drive"), freq_mhz=3562.6, gain=0.1, envelope=Gaussian(sigma_us=0.03))
+    p2 = Pulse(line=LineRef("qubit", "drive"), freq_mhz=3600.0, gain=0.1, envelope=Gaussian(sigma_us=0.05))
+    seq = Seq().play_parallel([p1, p2])
+    c.declare(seq)
+    c.play(seq)
+    timeline = [k for k in prog.kinds() if k in ("pulse", "delay", "delay_auto", "trigger")]
+    assert timeline.count("pulse") == 2                    # both pulses at the same cursor
+    assert timeline.count("delay_auto") == 1               # one advance for the whole segment
+    assert timeline == ["pulse", "pulse", "delay_auto"]

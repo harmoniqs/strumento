@@ -255,16 +255,29 @@ class Compiler:
     # -- play (timeline) pass ----------------------------------------------------------
 
     def play(self, seq: Seq) -> None:
+        """Lower the timeline under the cursor model (see ``docs/timeline.md``).
+
+        A single reference cursor advances down the sequence. A **sequentially** played pulse
+        (``start_us is None``) plays at the cursor, then the cursor advances past it via
+        ``delay_auto`` — duration-aware, so ``play(a).play(b)`` means *b after a* without the
+        caller computing ``a``'s length. A ``Segment`` (``play_parallel``) plays its pulses at the
+        cursor together (overlap/stagger by per-pulse offset), then advances once past the longest.
+        A pulse with an explicit ``start_us`` is placed **absolutely** and does *not* advance the
+        cursor (you opted into manual timing). ``Delay``/``wait`` advances the cursor explicitly.
+        """
         for op in seq.ops:
             if isinstance(op, Pulse):
                 self._play_pulse(op)
+                if op.start_us is None:
+                    self.program.delay_auto(0.0)          # advance past this pulse (duration-aware)
             elif isinstance(op, Delay):
                 self.program.delay(self._field_value(op.duration_us))
             elif isinstance(op, Raw):
                 op.fn(self.program)
             elif isinstance(op, Segment):
                 for p in op.pulses:
-                    self._play_pulse(p)
+                    self._play_pulse(p)                   # within a segment, start_us is an offset
+                self.program.delay_auto(0.0)              # advance once past the longest pulse
             elif isinstance(op, Measure):
                 adc = self.wiring.readout.adc_chs[0]
                 self.program.trigger(ros=[adc], t=0)
