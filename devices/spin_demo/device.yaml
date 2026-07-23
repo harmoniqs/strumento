@@ -1,7 +1,9 @@
-# Quantum-dot spin instance (spin pack) — SKELETON.
+# spin_demo — a quantum-dot spin instance (spin pack).
 #
-# A minimal double-dot: one driven Dot qubit + a plunger and a barrier gate. Numbers are
-# placeholders for the skeleton — real operating points and control land with the spin pulse layer.
+# A minimal double-dot: one driven Dot qubit, a plunger and a barrier gate. Fast axes (EDSR
+# drive, exchange pulses) are QICK generators; slow-DC electrostatics live on an external
+# voltage source (strumento.core.dc), mapped per gate under calibration.gates. Numbers are
+# synthetic but plausible.
 
 pack: spin
 
@@ -19,7 +21,8 @@ wiring:
       name: b0
       generators:
         - {role: dc, dac_ch: 2, nyquist: 1}
-  # charge-sensor readout (RF reflectometry off the ADC) — nominal wiring for the skeleton
+        - {role: fast, dac_ch: 2, nyquist: 1}
+  # charge-sensor readout (RF reflectometry off the ADC)
   readout:
     dac_ch: 3
     adc_chs: [0]
@@ -31,4 +34,15 @@ topology:
 
 calibration:
   dots:
-    q0: {f_qubit_mhz: 5000.0, exchange_j_mhz: 50.0}
+    q0:
+      f_qubit_mhz: 5000.0
+      exchange_j_mhz: 50.0
+      pulses:
+        pi:  {gain: 0.4, sigma: 0.020, type: gauss}
+        hpi: {gain: 0.2, sigma: 0.020, type: gauss}
+  gates:
+    p0: {dc_channel: 0, max_v: 1.5, crosscoupling: {b0: 0.12}}
+    b0:
+      dc_channel: 1
+      max_v: 1.2
+      exchange: {gain: 0.5, length: 0.05, type: flat_top}

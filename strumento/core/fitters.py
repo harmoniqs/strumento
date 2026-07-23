@@ -245,3 +245,49 @@ def fit_parity(xpts, y) -> FitResult:
         "phase_deg": float(np.degrees(params["phase"])),
     }
     return FitResult(params=params, stderr=stderr, derived=derived, success=bool(out.success))
+
+
+def _double_gaussian(x, a1, mu1, sigma1, a2, mu2, sigma2):
+    g1 = a1 * np.exp(-((x - mu1) ** 2) / (2 * sigma1**2))
+    g2 = a2 * np.exp(-((x - mu2) ** 2) / (2 * sigma2**2))
+    return g1 + g2
+
+
+def fit_double_gaussian(xpts, y) -> FitResult:
+    """Fit a bimodal histogram to two Gaussians (single-shot readout discrimination).
+
+    ``derived``: ``threshold`` (the midpoint between the two means — the discrimination
+    boundary), ``separation`` (|Δμ| / mean σ — the readout SNR figure), and the two means.
+    """
+    x = np.asarray(xpts, dtype=float)
+    y = np.asarray(y, dtype=float)
+
+    # seed the two peaks from the histogram halves around the global mean
+    mid = float(np.average(x, weights=np.maximum(y, 1e-12)))
+    lo, hi = x[x <= mid], x[x > mid]
+    ylo, yhi = y[x <= mid], y[x > mid]
+    mu1 = float(np.average(lo, weights=np.maximum(ylo, 1e-12))) if lo.size else float(x[0])
+    mu2 = float(np.average(hi, weights=np.maximum(yhi, 1e-12))) if hi.size else float(x[-1])
+    span = float(x.max() - x.min()) or 1.0
+
+    model = lmfit.Model(_double_gaussian)
+    pars = model.make_params(
+        a1=float(y.max()), mu1=mu1, sigma1=span / 10.0,
+        a2=float(y.max()), mu2=mu2, sigma2=span / 10.0,
+    )
+    for p in ("sigma1", "sigma2"):
+        pars[p].set(min=span / 1e4)
+    for p in ("a1", "a2"):
+        pars[p].set(min=0.0)
+
+    out = model.fit(y, pars, x=x)
+    params, stderr = _params_stderr(out)
+    mu_a, mu_b = sorted((params["mu1"], params["mu2"]))
+    sig = (abs(params["sigma1"]) + abs(params["sigma2"])) / 2.0
+    derived = {
+        "threshold": (mu_a + mu_b) / 2.0,
+        "separation": abs(mu_b - mu_a) / sig if sig else float("inf"),
+        "mu_low": mu_a,
+        "mu_high": mu_b,
+    }
+    return FitResult(params=params, stderr=stderr, derived=derived, success=bool(out.success))
