@@ -16,6 +16,12 @@ class RecordingProgram:
     def pulse(self, ch, name, t=0, **kw):   self.calls.append(("pulse", ch, name, t))
     def delay(self, t, **kw):               self.calls.append(("delay", t))
     def delay_auto(self, t=0, **kw):        self.calls.append(("delay_auto", t))
+    def read_and_jump(self, ro_ch=None, component=None, threshold=None, test=None, label=None, **kw):
+        self.calls.append(("read_and_jump", ro_ch, component, threshold, test, label))
+    def jump(self, label, **kw):            self.calls.append(("jump", label))
+    def label(self, label, **kw):           self.calls.append(("label", label))
+    def open_loop(self, n, name=None, **kw): self.calls.append(("open_loop", n, name))
+    def close_loop(self, **kw):             self.calls.append(("close_loop",))
     def trigger(self, ros=None, t=0, **kw): self.calls.append(("trigger", tuple(ros or ()), t))
     def declare_readout(self, ch, length, **kw): self.calls.append(("declare_readout", ch, length))
     def add_loop(self, name, count, **kw):  self.calls.append(("add_loop", name, count))

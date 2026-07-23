@@ -131,7 +131,44 @@ class Measure:
     params: dict[str, object] = field(default_factory=dict)
 
 
-Op = Pulse | Delay | Raw | Segment | Measure
+@dataclass
+class Branch:
+    """Measurement-conditional control flow — the QEC/feed-forward primitive (spec R1(i)).
+
+    Reads readout input ``adc`` mid-sequence and runs ``then`` when the discriminator test
+    passes on that input, ``else_`` otherwise. Lowers to tProc-v2 ``read_and_jump`` + ``label`` +
+    ``jump`` (real hardware flow control, not host post-selection). ``component`` is ``"I"`` or
+    ``"Q"``; ``test`` is one of ``">="`` / ``"<"`` (the two comparisons v2 provides — invert the
+    branches for the others) against an integer ``threshold`` in ADC-accumulator units (a float
+    is realized to the nearest int at lowering).
+
+    This is the in-sequence branch (active reset, mid-circuit feed-forward). The *result-layer*
+    herald/post-selection path is separate (``MeasurementResult.postselect``) and carries no
+    hardware-feedback dependency.
+    """
+
+    adc: int
+    threshold: float
+    then: Seq
+    else_: Seq | None = None
+    component: str = "I"
+    test: str = "<"
+
+
+@dataclass
+class Repeat:
+    """Run ``body`` ``count`` times as a bounded hardware loop (tProc-v2 ``open_loop``/``close_loop``).
+
+    The building block for repeated syndrome extraction / dynamical-decoupling trains — a fixed
+    repeat that stays on the tProc, distinct from a swept :class:`~strumento.core.sweeps.Sweep`
+    (which is a *measured* axis with an ``add_loop``).
+    """
+
+    body: Seq
+    count: int
+
+
+Op = Pulse | Delay | Raw | Segment | Measure | Branch | Repeat
 
 
 # --------------------------------------------------------------------------------------
@@ -201,6 +238,18 @@ class Seq:
 
     def measure(self, *, kind: str | None = None, **params: object) -> Seq:
         self.ops.append(Measure(kind=kind, params=dict(params)))
+        return self
+
+    def branch(self, *, adc: int, threshold: float, then: Seq,
+               else_: Seq | None = None, component: str = "I", test: str = "<") -> Seq:
+        """Append a measurement-conditional branch (in-sequence feed-forward; see :class:`Branch`)."""
+        self.ops.append(Branch(adc=adc, threshold=threshold, then=then, else_=else_,
+                               component=component, test=test))
+        return self
+
+    def repeat(self, body: Seq, count: int) -> Seq:
+        """Append a bounded hardware-loop repeat of ``body`` (see :class:`Repeat`)."""
+        self.ops.append(Repeat(body=body, count=count))
         return self
 
     def __add__(self, other: Seq) -> Seq:

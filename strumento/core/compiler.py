@@ -28,6 +28,7 @@ import numpy as np
 
 from strumento.core.pulses import (
     Arb,
+    Branch,
     Const,
     Delay,
     FlatTop,
@@ -35,6 +36,7 @@ from strumento.core.pulses import (
     Measure,
     Pulse,
     Raw,
+    Repeat,
     Segment,
     Seq,
 )
@@ -46,6 +48,9 @@ DEFAULT_RO_LENGTH_US = 1.0
 
 #: default Gaussian total window as a multiple of sigma (slice-1 convention).
 _GAUSS_LENGTH_SIGMAS = 4.0
+
+#: the two comparisons tProc-v2 read_and_jump supports (others: invert the branches).
+_V2_BRANCH_TESTS = frozenset({">=", "<"})
 
 
 # --------------------------------------------------------------------------------------
@@ -192,6 +197,7 @@ class Compiler:
         self._pulse_names: dict[tuple, str] = {}
         self._declared_ros: set[int] = set()
         self._declared_loops: set[str] = set()
+        self._label_counter: int = 0
 
     # -- declaration pass --------------------------------------------------------------
 
@@ -243,7 +249,7 @@ class Compiler:
                 )
                 self._pulse_names[pkey] = name
 
-        if any(isinstance(op, Measure) for op in seq.ops):
+        if self._needs_readout(seq):
             adc = self.wiring.readout.adc_chs[0]
             if adc not in self._declared_ros:
                 length = self.wiring.readout.lengths_us or DEFAULT_RO_LENGTH_US
@@ -281,8 +287,56 @@ class Compiler:
             elif isinstance(op, Measure):
                 adc = self.wiring.readout.adc_chs[0]
                 self.program.trigger(ros=[adc], t=0)
+            elif isinstance(op, Branch):
+                self._play_branch(op)
+            elif isinstance(op, Repeat):
+                self._play_repeat(op)
             else:  # pragma: no cover - defensive
                 raise TypeError(f"cannot lower op {type(op).__name__!r}")
+
+    def _play_branch(self, op: Branch) -> None:
+        """Lower a measurement-conditional branch to real tProc-v2 flow control.
+
+        Pattern (no test negation needed): read-and-jump to the THEN label when the test passes;
+        the else block falls through and jumps past THEN to END::
+
+            read_and_jump(ro, comp, thresh, test, THEN)
+            <else block>
+            jump(END)
+            label(THEN); <then block>
+            label(END)
+        """
+        if op.test not in _V2_BRANCH_TESTS:
+            raise ValueError(
+                f"Branch test {op.test!r} is not a tProc-v2 comparison; use one of "
+                f"{sorted(_V2_BRANCH_TESTS)} (v2 read_and_jump supports only these two — "
+                f"invert the branches to express the others)"
+            )
+        n = self._next_label()
+        then_lbl, end_lbl = f"strumento_then_{n}", f"strumento_end_{n}"
+        # v2 read_and_jump wants an int threshold (a 24-bit signed ADC-accumulator value) or a
+        # register name; accept a float in the IR and realize it to the int the hardware compares.
+        threshold = op.threshold if isinstance(op.threshold, str) else int(round(op.threshold))
+        self.program.read_and_jump(
+            ro_ch=op.adc, component=op.component, threshold=threshold, test=op.test, label=then_lbl
+        )
+        if op.else_ is not None:
+            self.play(op.else_)
+        self.program.jump(end_lbl)
+        self.program.label(then_lbl)
+        self.play(op.then)
+        self.program.label(end_lbl)
+
+    def _play_repeat(self, op: Repeat) -> None:
+        """Lower a bounded repeat to a tProc-v2 hardware loop (``open_loop``/``close_loop``)."""
+        n = self._next_label()
+        self.program.open_loop(op.count, name=f"strumento_repeat_{n}")
+        self.play(op.body)
+        self.program.close_loop()
+
+    def _next_label(self) -> int:
+        self._label_counter += 1
+        return self._label_counter
 
     # -- helpers -----------------------------------------------------------------------
 
@@ -330,27 +384,59 @@ class Compiler:
 
     @staticmethod
     def _all_pulses(seq: Seq) -> Iterator[Pulse]:
+        """Every pulse in the sequence, recursing into Branch (then/else) and Repeat (body)."""
         for op in seq.ops:
             if isinstance(op, Pulse):
                 yield op
             elif isinstance(op, Segment):
                 yield from op.pulses
+            elif isinstance(op, Branch):
+                yield from Compiler._all_pulses(op.then)
+                if op.else_ is not None:
+                    yield from Compiler._all_pulses(op.else_)
+            elif isinstance(op, Repeat):
+                yield from Compiler._all_pulses(op.body)
+
+    @staticmethod
+    def _needs_readout(seq: Seq) -> bool:
+        """True if the sequence measures or branches on a readout, anywhere (recursively)."""
+        for op in seq.ops:
+            if isinstance(op, (Measure, Branch)):
+                return True
+            if isinstance(op, Repeat) and Compiler._needs_readout(op.body):
+                return True
+            if isinstance(op, Branch) and (
+                Compiler._needs_readout(op.then)
+                or (op.else_ is not None and Compiler._needs_readout(op.else_))
+            ):
+                return True
+        return False
 
     @staticmethod
     def _sweeps_in(seq: Seq) -> list[Sweep]:
-        """Unique (by name) sweeps across pulse gain/freq and delay-duration fields."""
+        """Unique (by name) sweeps across pulse gain/freq and delay-duration fields (recursive)."""
         found: dict[str, Sweep] = {}
-        for op in seq.ops:
-            pulses = op.pulses if isinstance(op, Segment) else ([op] if isinstance(op, Pulse) else [])
-            for p in pulses:
-                fields = [p.gain, p.freq_mhz, p.phase_deg]
-                if isinstance(getattr(p.envelope, "length_us", None), Sweep):
-                    fields.append(p.envelope.length_us)
-                for v in fields:
-                    if isinstance(v, Sweep):
-                        found.setdefault(v.name, v)
-            if isinstance(op, Delay) and isinstance(op.duration_us, Sweep):
-                found.setdefault(op.duration_us.name, op.duration_us)
+
+        def visit(s: Seq) -> None:
+            for op in s.ops:
+                pulses = op.pulses if isinstance(op, Segment) else ([op] if isinstance(op, Pulse) else [])
+                for p in pulses:
+                    fields = [p.gain, p.freq_mhz, p.phase_deg]
+                    if isinstance(getattr(p.envelope, "length_us", None), Sweep):
+                        fields.append(p.envelope.length_us)
+                    for v in fields:
+                        if isinstance(v, Sweep):
+                            found.setdefault(v.name, v)
+                if isinstance(op, Delay) and isinstance(op.duration_us, Sweep):
+                    found.setdefault(op.duration_us.name, op.duration_us)
+                if isinstance(op, Branch):
+                    visit(op.then)
+                    if op.else_ is not None:
+                        visit(op.else_)
+                if isinstance(op, Repeat):
+                    visit(op.body)
+
+        visit(seq)
         return list(found.values())
 
 
