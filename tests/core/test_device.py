@@ -42,9 +42,12 @@ def test_topology_composed_and_namespace_bound():
     assert isinstance(dev.qubit, TransmonOps)
     assert dev.qubit.element is dev.elements["qubit"]
     assert dev.qubit.device is dev
-    # elements whose ops land in a later slice are NOT bound as namespaces yet
-    assert not hasattr(dev, "manipulate")
-    assert not hasattr(dev, "coupler")
+    # slice 4: modes and the coupler now carry ops classes and bind too
+    from strumento.packs.cqed.library.coupler import CouplerOps
+    from strumento.packs.cqed.library.mode import ModeOps
+
+    assert isinstance(dev.manipulate, ModeOps)
+    assert isinstance(dev.coupler, CouplerOps)
 
 
 def test_all_elements_are_wireable():

@@ -213,3 +213,35 @@ def fit_damped_rabi(xpts, y) -> FitResult:
         "tau": tau,
     }
     return FitResult(params=params, stderr=stderr, derived=derived, success=success)
+
+
+def _cosine(x, offset, amp, freq, phase):
+    return offset + amp * np.cos(2 * np.pi * freq * x + phase)
+
+
+def fit_parity(xpts, y) -> FitResult:
+    """Fit a parity fringe (phase scan of the second half-pi, degrees) to a plain cosine.
+
+    ``derived["contrast"]`` is the peak-to-peak fringe amplitude ``2·|amp|``;
+    ``derived["phase_deg"]`` is the fringe phase offset in degrees.
+    """
+    x = np.asarray(xpts, dtype=float)
+    y = np.asarray(y, dtype=float)
+
+    model = lmfit.Model(_cosine)
+    span = float(x.max() - x.min()) or 1.0
+    pars = model.make_params(
+        offset=float(np.mean(y)),
+        amp=float((y.max() - y.min()) / 2.0),
+        freq=1.0 / span,   # one fringe over the scanned span (360° scan -> 1/360 per degree)
+        phase=0.0,
+    )
+    pars["freq"].set(min=0.1 / span, max=10.0 / span)
+
+    out = model.fit(y, pars, x=x)
+    params, stderr = _params_stderr(out)
+    derived = {
+        "contrast": 2.0 * abs(params["amp"]),
+        "phase_deg": float(np.degrees(params["phase"])),
+    }
+    return FitResult(params=params, stderr=stderr, derived=derived, success=bool(out.success))

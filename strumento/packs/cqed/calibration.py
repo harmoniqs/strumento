@@ -62,6 +62,59 @@ class ReadoutCal(_Strict):
     threshold: float | None = None
 
 
+class SidebandPulseCal(_Strict):
+    """One calibrated sideband (e.g. f0g1) pulse at a given photon number (flat-top)."""
+
+    frequency: float          # MHz
+    gain: float               # lab-native int code (D23)
+    length: float             # flat length, µs
+    ramp_sigma: float = 0.005  # flat-top ramp sigma, µs
+    type: str = "flat_top"
+
+
+class MultiphotonCal(_Strict):
+    """A multiphoton-ladder transition: per-photon-number pulse calibrations."""
+
+    pi: list[SidebandPulseCal] = []
+    hpi: list[SidebandPulseCal] = []
+
+
+class SwapCal(_Strict):
+    """One calibrated coupler beamsplitter swap (flat-top), keyed "A-B" in the instance."""
+
+    frequency: float          # MHz (band-gates the coupler generator)
+    gain: float               # lab-native int code
+    length: float             # π-swap flat length, µs
+    ramp_sigma: float = 0.005
+
+
+class ModeCal(_Strict):
+    """Per-bosonic-mode calibration: parity revival time(s) + an optional displacement pulse."""
+
+    revival_time: list[float] = []   # µs; [slow, fast, ...]
+    displace: PulseCal | None = None
+
+
+class PiPulseReference:
+    """Physical drive amplitude (MHz Rabi) ↔ v2 gain fraction, via a calibrated π pulse (§6.5).
+
+    The linear ruler the OC import boundary uses: a calibrated π pulse with known gain fraction
+    and known peak Rabi rate fixes ``frac_per_mhz``; imported physical amplitudes convert with
+    no int-code hop (D23). Callable: ``ref(amp_mhz) -> fraction``.
+    """
+
+    def __init__(self, *, pi_gain_frac: float, pi_rabi_mhz: float) -> None:
+        if pi_rabi_mhz <= 0:
+            raise ValueError("pi_rabi_mhz must be positive")
+        self.pi_gain_frac = pi_gain_frac
+        self.pi_rabi_mhz = pi_rabi_mhz
+
+    def to_frac(self, amp_mhz: float) -> float:
+        return amp_mhz * self.pi_gain_frac / self.pi_rabi_mhz
+
+    __call__ = to_frac
+
+
 class Calibration(_Strict):
     """The device instance's calibration values (calib VALUES layer, spec §5/D21)."""
 
@@ -70,3 +123,9 @@ class Calibration(_Strict):
     #: interaction strengths (MHz) for typed coupling edges, keyed "elementA-elementB" (D31);
     #: the strength stays *data* here, never on the edge declaration.
     couplings: dict[str, float] = {}
+    #: multiphoton ladder (f0g1 &c.), keyed by transition name (e.g. "f0-g1").
+    multiphoton: dict[str, MultiphotonCal] = {}
+    #: coupler beamsplitter swaps, keyed "A-B" (e.g. "manipulate-S1").
+    swaps: dict[str, SwapCal] = {}
+    #: per-mode calibration (revival times, displacement pulse), keyed by element name.
+    modes: dict[str, ModeCal] = {}

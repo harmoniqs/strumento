@@ -23,6 +23,8 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 if TYPE_CHECKING:  # annotation-only: keeps the IR module dependency-light
     from strumento.core.sweeps import Sweep
 
@@ -146,6 +148,7 @@ class Seq:
 
     def __init__(self, ops: list[Op] | None = None) -> None:
         self.ops: list[Op] = list(ops) if ops is not None else []
+        self.meta: dict = {}  # provenance & friends (e.g. stamped by from_solution, §6.5)
 
     # -- accumulator + context ergonomics ------------------------------------------------
     # Long sequences read (and diff) better line-by-line than as one chained expression, so
@@ -213,3 +216,92 @@ class Seq:
 
     def __repr__(self) -> str:
         return f"Seq({[type(op).__name__ for op in self.ops]})"
+
+
+# --------------------------------------------------------------------------------------
+# Optimal-control import boundary (spec §6.5, D17/D23) — the solver × QICK seam
+# --------------------------------------------------------------------------------------
+
+
+def from_solution(solution, *, drive_map, gain_calib, dac_rate: float | None = None) -> Seq:
+    """Import a solved optimal-control pulse as a :class:`Seq` wrapping one :class:`Segment`.
+
+    This is the typed, lossless replacement for the load-npz-and-interp1d idiom: drive→line
+    mapping is explicit, physical amplitudes convert to v2 fractions through a calibrated
+    reference (no int-code hop, D23), resampling is owned here, simultaneity is a
+    :class:`Segment`, and provenance rides on ``Seq.meta``.
+
+    Parameters
+    ----------
+    solution:
+        A mapping (or object) with ``times`` — the control grid in µs — and ``controls`` — a
+        mapping of drive name → real (or complex I+jQ) amplitude samples in **physical units**
+        (MHz Rabi rate).
+    drive_map:
+        ``{drive name: (line_ref, carrier_freq_mhz)}`` — where each drive plays and at what
+        carrier. ``line_ref`` is a :class:`~strumento.core.wiring.LineRef` or ``(line, role)``.
+    gain_calib:
+        Physical amplitude → v2 gain fraction: any callable (e.g. a cqed ``PiPulseReference``).
+    dac_rate:
+        Target sample rate (samples/µs). ``None`` keeps the solution grid.
+    """
+    times, controls = _solution_fields(solution)
+    times = np.asarray(times, dtype=float)
+
+    if dac_rate is not None:
+        n = max(2, int(round((times[-1] - times[0]) * dac_rate)) + 1)
+        grid = np.linspace(times[0], times[-1], n)
+    else:
+        grid = times
+
+    pulses: list[Pulse] = []
+    for name, samples in controls.items():
+        if name not in drive_map:
+            raise KeyError(f"drive {name!r} has no entry in drive_map (have {sorted(drive_map)})")
+        line_ref, carrier = drive_map[name]
+        if not isinstance(line_ref, LineRef):
+            line_ref = LineRef(*line_ref)
+
+        arr = np.asarray(samples)
+        idata = np.interp(grid, times, np.real(arr))
+        qdata = np.interp(grid, times, np.imag(arr)) if np.iscomplexobj(arr) else None
+
+        peak = float(np.max(np.abs(arr))) or 1.0
+        pulses.append(
+            Pulse(
+                line=line_ref,
+                freq_mhz=carrier,
+                gain=float(gain_calib(peak)),
+                envelope=Arb(
+                    idata=idata / peak,
+                    qdata=(qdata / peak) if qdata is not None else None,
+                ),
+                start_us=0.0,
+                label=f"oc_{name}",
+            )
+        )
+
+    seq = Seq().play_parallel(pulses)
+    seq.meta.update(
+        {
+            "source": "from_solution",
+            "drives": sorted(controls),
+            "n_samples": int(len(grid)),
+            "span_us": float(grid[-1] - grid[0]),
+            "dac_rate": dac_rate,
+        }
+    )
+    return seq
+
+
+def _solution_fields(solution):
+    """Accept a mapping or an object with ``times``/``controls`` attributes."""
+    if hasattr(solution, "times") and hasattr(solution, "controls"):
+        return solution.times, solution.controls
+    try:
+        return solution["times"], solution["controls"]
+    except (KeyError, TypeError) as err:
+        raise TypeError(
+            "from_solution needs `times` and `controls` (a mapping or attributes); got "
+            f"{type(solution).__name__}"
+        ) from err
