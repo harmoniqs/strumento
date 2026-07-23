@@ -29,8 +29,8 @@ from typing import Any
 
 import yaml
 
-from strumento.core.device import Device, _load_pack
-from strumento.core.wiring import Generator, Line, ReadoutWiring, Wiring
+from strumento.core.device import Device, _form_name, _load_pack
+from strumento.core.wiring import Generator, Line, ReadoutWiring
 
 
 class DeviceBuilder:
@@ -92,30 +92,40 @@ class DeviceBuilder:
     # -- build -----------------------------------------------------------------------
 
     def build(self, *, calib: Any) -> Device:
-        """Validate, resolve the pack, compose elements + wiring, and return a canonical ``Device``."""
-        pack = _load_pack(self.pack_name)
+        """Validate, then emit a canonical :class:`DeviceConfig` and compose a ``Device`` from it.
+
+        Routing through :meth:`Device.from_config` (rather than constructing the ``Device``
+        directly) means a builder-authored device round-trips through the config store identically
+        to a YAML-loaded one — the D30 "three authoring surfaces, one canonical model" guarantee.
+        """
+        from strumento.core.config import DeviceConfig
+
+        _load_pack(self.pack_name)  # fail fast on an unknown pack
         self._validate()
 
         calib_data = calib
         if isinstance(calib, (str, Path)):
             calib_data = yaml.safe_load(Path(calib).read_text())
-        calib_obj = pack.CALIBRATION(**calib_data)
 
-        elements = pack.compose_elements(self._topology, calib_obj)
-        wiring = Wiring(
-            lines={name: Line(name=name, generators=gens) for name, gens in self._lines.items()},
-            readout=ReadoutWiring(**self._readout),
-        )
-        couplings = _resolve_couplings(self._couplings)
-
-        return Device(
+        wiring = {
+            "lines": {
+                name: Line(name=name, generators=gens).model_dump()
+                for name, gens in self._lines.items()
+            },
+            "readout": ReadoutWiring(**self._readout).model_dump(),
+        }
+        config = DeviceConfig(
+            pack=self.pack_name,
+            topology=list(self._topology),
             wiring=wiring,
-            calib=calib_obj,
+            calibration=dict(calib_data),
+            couplings=[
+                {"a": c["a"], "b": c["b"], "form": _form_name(c["form"]), "mediated_by": c["mediated_by"]}
+                for c in self._couplings
+            ],
             soccfg_snapshot=self._soccfg,
-            elements=elements,
-            pack=pack,
-            couplings=couplings,
         )
+        return Device.from_config(config)
 
     # -- construction-time validation (early, specific diagnostics) -------------------
 
@@ -130,12 +140,3 @@ class DeviceBuilder:
                     raise ValueError(f"coupling references unknown element {endpoint!r} (add() it first)")
             if c["mediated_by"] is not None and c["mediated_by"] not in names:
                 raise ValueError(f"coupling mediated_by unknown element {c['mediated_by']!r}")
-
-
-def _resolve_couplings(raw: list[dict]) -> list:
-    """Turn recorded coupling dicts into ``Coupling`` edges (imported lazily to avoid a cycle)."""
-    if not raw:
-        return []
-    from strumento.core.coupling import Coupling
-
-    return [Coupling(a=c["a"], b=c["b"], form=c["form"], mediated_by=c["mediated_by"]) for c in raw]

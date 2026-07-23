@@ -41,6 +41,11 @@ def _load_pack(name: str) -> Any:
     raise KeyError(f"no pack {name!r} under 'strumento.packs' entry points (have {available})")
 
 
+def _form_name(form: Any) -> str:
+    """A coupling form's registered/class name (for serializing a live edge back to config)."""
+    return form if isinstance(form, str) else getattr(form, "__name__", str(form))
+
+
 def _parse_couplings(raw: list[dict]) -> list:
     """Build typed coupling edges from a YAML ``couplings:`` list (form is a registered name)."""
     if not raw:
@@ -66,6 +71,7 @@ class Device:
         pack: Any,
         couplings: list | tuple = (),
         aliases: dict | None = None,
+        config: Any | None = None,
     ) -> None:
         self.wiring = wiring
         self.calib = calib
@@ -73,37 +79,81 @@ class Device:
         self.elements = elements
         self.pack = pack
         self.couplings = list(couplings)  # typed interaction edges (D31)
+        self._config = config  # the canonical source form (DeviceConfig), retained for round-trip
         self._validate_wiring()
         self._bind_namespaces()
         self._bind_aliases(aliases or {})
 
     @classmethod
-    def load(cls, path: str | Path) -> Device:
-        """Parse an instance YAML → validate → compose elements → bind wiring & namespaces."""
-        path = Path(path)
-        raw = yaml.safe_load(path.read_text())
+    def from_config(cls, config: Any) -> Device:
+        """Compose a live ``Device`` from a canonical :class:`~strumento.core.config.DeviceConfig`.
 
-        pack = _load_pack(raw["pack"])
-        wiring = Wiring(**raw["wiring"])
-        calib = pack.CALIBRATION(**raw["calibration"])
-        elements = pack.compose_elements(raw["topology"], calib)
-
-        soccfg_snapshot: dict | None = None
-        snap_name = raw.get("soccfg_snapshot")
-        if snap_name:
-            soccfg_snapshot = json.loads((path.parent / snap_name).read_text())
-
-        couplings = _parse_couplings(raw.get("couplings", []))
-
+        This is the one composition path; :meth:`load` and ``DeviceBuilder.build`` both funnel
+        through it, so ``Device ⇄ DeviceConfig`` is a faithful round-trip (D30). The config is
+        retained on the device (``to_config``) so a live device can be re-serialized, hashed,
+        and versioned in the config store (D9).
+        """
+        pack = _load_pack(config.pack)
+        wiring = Wiring(**config.wiring)
+        calib = pack.CALIBRATION(**config.calibration)
+        elements = pack.compose_elements(config.topology, calib)
+        couplings = _parse_couplings(config.couplings)
         return cls(
             wiring=wiring,
             calib=calib,
-            soccfg_snapshot=soccfg_snapshot,
+            soccfg_snapshot=config.soccfg_snapshot,
             elements=elements,
             pack=pack,
             couplings=couplings,
-            aliases=raw.get("aliases", {}),
+            aliases=config.aliases,
+            config=config,
         )
+
+    def to_config(self) -> Any:
+        """The canonical :class:`~strumento.core.config.DeviceConfig` this device composed from.
+
+        Reflects the *current* calibration: after a write-back (``config.apply_updates``) the new
+        config is what you snapshot into the store.
+        """
+        from strumento.core.config import DeviceConfig
+
+        if self._config is not None:
+            return self._config
+        # A device constructed directly (not via from_config/load) reconstructs its config from
+        # live state — calibration and wiring re-serialize via Pydantic; topology from elements.
+        return DeviceConfig(
+            pack=self.pack.__name__.rsplit(".", 1)[-1],
+            topology=[{"type": type(el).__name__, "name": name} for name, el in self.elements.items()],
+            wiring=self.wiring.model_dump(),
+            calibration=self.calib.model_dump(),
+            couplings=[{"a": c.a, "b": c.b, "form": _form_name(c.form), "mediated_by": c.mediated_by}
+                       for c in self.couplings],
+            soccfg_snapshot=self.soccfg_snapshot,
+        )
+
+    @classmethod
+    def load(cls, path: str | Path) -> Device:
+        """Parse an instance YAML → :class:`DeviceConfig` → compose (via :meth:`from_config`)."""
+        from strumento.core.config import DeviceConfig
+
+        path = Path(path)
+        raw = yaml.safe_load(path.read_text())
+
+        snap_name = raw.get("soccfg_snapshot")
+        soccfg_snapshot: dict | None = None
+        if snap_name:
+            soccfg_snapshot = json.loads((path.parent / snap_name).read_text())
+
+        config = DeviceConfig(
+            pack=raw["pack"],
+            topology=raw["topology"],
+            wiring=raw["wiring"],
+            calibration=raw["calibration"],
+            couplings=raw.get("couplings", []),
+            aliases=raw.get("aliases", {}),
+            soccfg_snapshot=soccfg_snapshot,
+        )
+        return cls.from_config(config)
 
     # -- internals ---------------------------------------------------------------------
 
