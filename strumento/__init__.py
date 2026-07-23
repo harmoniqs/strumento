@@ -1,7 +1,7 @@
 """strumento — a first-principles QICK tProc-v2 experiment framework.
 
 Device model + pulse IR + compiler + experiment/fitting lifecycle, with a raw-qick escape hatch
-at every level. See ``docs/spec.md`` (design of record), ``docs/plan.md`` (slices), and
+at every level. See ``docs/architecture.md`` (design + decision index) and
 ``docs/getting-started.md`` (walkthrough with examples).
 
 The names re-exported here are the **pure** public surface — importable with no ``qick`` present.
@@ -15,9 +15,11 @@ submodules explicitly, e.g.::
 so that ``import strumento`` never pulls in ``qick``.
 """
 
+from strumento.core.config import DeviceConfig, apply_updates
 from strumento.core.device import Device
 from strumento.core.pulses import Arb, Const, FlatTop, Gaussian, Pulse, Seq
 from strumento.core.result import MeasurementResult
+from strumento.core.store import FileConfigStore, record_calibration
 from strumento.core.sweeps import Sweep
 from strumento.core.wiring import LineRef
 
@@ -25,6 +27,10 @@ __version__ = "0.0.0"
 
 __all__ = [
     "Device",
+    "DeviceConfig",
+    "apply_updates",
+    "FileConfigStore",
+    "record_calibration",
     "Seq",
     "Pulse",
     "Sweep",
