@@ -15,6 +15,7 @@ class RecordingProgram:
     def add_envelope(self, ch, name, **kw): self.calls.append(("add_envelope", ch, name, kw))
     def pulse(self, ch, name, t=0, **kw):   self.calls.append(("pulse", ch, name, t))
     def delay(self, t, **kw):               self.calls.append(("delay", t))
+    def delay_auto(self, t=0, **kw):        self.calls.append(("delay_auto", t))
     def trigger(self, ros=None, t=0, **kw): self.calls.append(("trigger", tuple(ros or ()), t))
     def declare_readout(self, ch, length, **kw): self.calls.append(("declare_readout", ch, length))
     def add_loop(self, name, count, **kw):  self.calls.append(("add_loop", name, count))

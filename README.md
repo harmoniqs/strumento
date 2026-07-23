@@ -80,6 +80,7 @@ the codesign arc (device-model reports, board descriptions, simulator soc).
 | **[getting-started.md](docs/getting-started.md)** | Hands-on walkthrough with runnable examples — device, pulses, sequences, sweeps, fitting, experiments, the escape hatch, transport. |
 | **[cqed-cookbook.md](docs/cqed-cookbook.md)** | A tour of the `cqed` pack by example. Every snippet verified against the live API. |
 | **[packs-and-devices.md](docs/packs-and-devices.md)** | How elements compose into a device, the `DeviceBuilder`, typed couplings + Hamiltonian export, and **how to add a modality pack**. |
+| **[timeline.md](docs/timeline.md)** | The cursor model — exactly when each op plays — plus the QICK-v2 redundancy audit. |
 | **[calibration-store.md](docs/calibration-store.md)** | Operating a device over time — immutable, content-addressed calibration versions + write-back. |
 | **[fitters.md](docs/fitters.md)** | The vendored fitter library — the resonator circle fit and friends. |
 | **[spin-pack.md](docs/spin-pack.md)** | Quantum-dot workflows: the slow-DC seam, charge stability, PSB — and the coverage roadmap. |
