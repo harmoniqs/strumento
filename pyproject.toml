@@ -9,6 +9,15 @@ description = "A first-principles QICK tProc-v2 experiment framework (device mod
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Harmoniqs" }]
+license = { text = "MIT" }
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Physics",
+]
 keywords = ["qick", "tproc-v2", "quantum", "control", "rfsoc", "calibration"]
 dependencies = [
     "pydantic>=2",
@@ -17,6 +26,9 @@ dependencies = [
     "lmfit",
     "pyyaml",
 ]
+
+[project.urls]
+Repository = "https://github.com/harmoniqs/strumento"
 
 [project.scripts]
 strumento = "strumento.cli:main"

@@ -191,4 +191,4 @@ model.to_dict()     # JSON-serializable wire format for an upstream consumer
 shapes it into Piccolo's `(drift, ordered drives)` convention; the actual `QuantumSystem` is built
 upstream (Piccolo is Julia) from `model.to_dict()`. QuTiP or any other consumer uses the same spec.
 
-See `docs/spec.md` §5.3 and §6.6 for the full design.
+See [architecture.md](architecture.md) (device model + solver seam) for the full design.

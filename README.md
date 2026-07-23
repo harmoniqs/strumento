@@ -1,5 +1,7 @@
 # Strumento
 
+[![CI](https://github.com/harmoniqs/strumento/actions/workflows/ci.yml/badge.svg)](https://github.com/harmoniqs/strumento/actions/workflows/ci.yml)
+
 **Write quantum experiments in the language of your device — run them on QICK tProc-v2.**
 
 Strumento is a first-principles [QICK](https://github.com/openquantumhardware/qick) tProc-v2
@@ -52,28 +54,39 @@ Full walkthrough → **[docs/getting-started.md](docs/getting-started.md)**.
 
 ## Status
 
-The modality-agnostic `core` and the `cqed` pack are built and green end-to-end through **Slice 2**
-(a pulse compiles onto the mock; amplitude Rabi with sweeps + fitting). The device model —
-`DeviceBuilder`, typed couplings, and Hamiltonian export — is built (D30/D31); `tweezer` and `spin`
-ship as pack skeletons. The suite runs offline and ~95% of the logic needs no `qick`.
+The modality-agnostic `core` and the `cqed` pack are built and green end-to-end through the
+first six tracer-bullet slices: pulses, sweeps, amplitude Rabi, T1/T2 Ramsey, f0g1 + storage
+swaps, parity, resonator spectroscopy, and the optimal-control import boundary
+(`from_solution`). The device model — `DeviceBuilder`, typed couplings, Hamiltonian export —
+is built; the `spin` pack covers quantum-dot workflows (slow-DC seam, charge stability, PSB
+readout tune-up); `tweezer` ships as a skeleton. A vendored fitter library (resonator circle
+fit, Fano, the damped-sinusoid family, double-Gaussian) and a `strumento` CLI round it out.
+The suite runs offline; most of the logic needs no `qick` at all.
 
 > **The v2 story:** building a *real* `AveragerProgramV2` needs a **tProc-v2** (`qick_processor`)
 > soccfg. The repo commits the official qick **testbench** v2 config (single-channel), so real v2
 > assembly runs offline and in CI; drop your own board's `dump_cfg()` at
 > `devices/_fixtures/soccfg_v2.json` and the v2 suite runs against *your* firmware instead.
 
-Roadmap: Slice 3 (T1/T2), Slice 4 (f0g1 + storage swap), Slice 5 (parity), Slice 6 (optimal-control
-import).
+Roadmap: active reset (herald/post-selection data path, then in-sequence v2 feedback), the
+tweezer pack ops, spinQICK-parity long tail (see [docs/spin-pack.md](docs/spin-pack.md)), and
+the codesign arc (device-model reports, board descriptions, simulator soc).
 
 ## Documentation
 
 | Doc | What's in it |
 |---|---|
+| **[architecture.md](docs/architecture.md)** | The design: tenets, three layers, every seam, and the decision index (D1–D31) code docstrings cite. |
 | **[getting-started.md](docs/getting-started.md)** | Hands-on walkthrough with runnable examples — device, pulses, sequences, sweeps, fitting, experiments, the escape hatch, transport. |
-| **[cqed-cookbook.md](docs/cqed-cookbook.md)** | A tour of the `cqed` pack by example — pulses, sweeps, readout, fitting, device authoring, couplings, Hamiltonian export. Every snippet verified against the live API. |
+| **[cqed-cookbook.md](docs/cqed-cookbook.md)** | A tour of the `cqed` pack by example. Every snippet verified against the live API. |
 | **[packs-and-devices.md](docs/packs-and-devices.md)** | How elements compose into a device, the `DeviceBuilder`, typed couplings + Hamiltonian export, and **how to add a modality pack**. |
-| **[job-manager.md](docs/job-manager.md)** | How Strumento reaches a remote/shared board — the job server, `JobServerSoc`, and the compile-off-board wire contract. |
+| **[fitters.md](docs/fitters.md)** | The vendored fitter library — the resonator circle fit and friends. |
+| **[spin-pack.md](docs/spin-pack.md)** | Quantum-dot workflows: the slow-DC seam, charge stability, PSB — and the coverage roadmap. |
+| **[job-manager.md](docs/job-manager.md)** | How Strumento reaches a remote/shared board — the job server and the compile-off-board wire contract. |
+| **[hardware-ci.md](docs/hardware-ci.md)** | Board-in-the-loop CI: the runner-on-the-board pattern and how to stand one up. |
+| **[cli.md](docs/cli.md)** | The `strumento` CLI (agent-forward; `--json` everywhere). |
 | **[qick-v2-api-notes.md](docs/qick-v2-api-notes.md)** | The exact offline qick tProc-v2 API Strumento builds against. |
+| **[AGENTS.md](AGENTS.md)** | Orientation for AI agents: rules, recipes, what needs a board. |
 
 ## Architecture
 
@@ -173,4 +186,4 @@ avoided a `*QICK` name so it reads as *our layer on QICK*, not a fork.
 
 ## License
 
-Open-source license to be finalized before the first public release.
+MIT — see [LICENSE](LICENSE).
