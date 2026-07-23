@@ -50,3 +50,12 @@ class DispersiveIQ:
     def reduce(self, raw):
         """Excited-state population, averaged over the trailing shot axis."""
         return np.mean(self.discriminate(raw), axis=-1)
+
+    def herald(self, raw, *, keep_state: int = 0):
+        """Per-shot **pass mask** for a herald readout event (spec R1(ii)).
+
+        Discriminates each shot and returns ``True`` where the outcome equals ``keep_state`` —
+        the shots to keep in post-selection (default: keep ``|g⟩``, i.e. a bare-ground herald).
+        Feed the result into ``MeasurementResult.heralds[<lane>]``; ``postselect`` ANDs the lanes.
+        """
+        return self.discriminate(raw) == keep_state
