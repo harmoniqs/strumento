@@ -1,0 +1,95 @@
+# spin_eo_demo — an exchange-only (triple-dot) spin instance.
+#
+# A minimal EO qubit: three dots (q1, q2, q3) in the exchange-only encoding, two barriers
+# (b12, b23) carrying exchange pulses, one plunger for detuning, a charge sensor for
+# readout, and a reservoir for electron loading. Models a single EO qubit similar to
+# one TQD in an HRL-style Si/SiGe array.
+#
+# Numbers are synthetic but plausible for a Si/SiGe device.
+
+pack: spin
+
+wiring:
+  lines:
+    q1:
+      name: q1
+      generators:
+        - {role: drive, dac_ch: 0, nyquist: 1}
+    q2:
+      name: q2
+      generators:
+        - {role: drive, dac_ch: 1, nyquist: 1}
+    q3:
+      name: q3
+      generators:
+        - {role: drive, dac_ch: 2, nyquist: 1}
+    p1:
+      name: p1
+      generators:
+        - {role: dc, dac_ch: 3, nyquist: 1}
+    b12:
+      name: b12
+      generators:
+        - {role: dc, dac_ch: 4, nyquist: 1}
+        - {role: fast, dac_ch: 4, nyquist: 1}
+    b23:
+      name: b23
+      generators:
+        - {role: dc, dac_ch: 5, nyquist: 1}
+        - {role: fast, dac_ch: 5, nyquist: 1}
+    sensor:
+      name: sensor
+      generators:
+        - {role: dc, dac_ch: 6, nyquist: 1}
+        - {role: readout, dac_ch: 6, nyquist: 1}
+    res:
+      name: res
+      generators:
+        - {role: dc, dac_ch: 7, nyquist: 1}
+  readout:
+    dac_ch: 6
+    adc_chs: [0]
+
+topology:
+  - {type: Dot, name: q1, encoding: eo}
+  - {type: Dot, name: q2, encoding: eo}
+  - {type: Dot, name: q3, encoding: eo}
+  - {type: Plunger, name: p1}
+  - {type: Barrier, name: b12}
+  - {type: Barrier, name: b23}
+  - {type: ChargeSensor, name: sensor, sensor_type: qpc}
+  - {type: Reservoir, name: res}
+
+calibration:
+  dots:
+    q1:
+      f_qubit_mhz: 0.0
+      exchange_j_mhz: 80.0
+      pulses:
+        j_pi:  {gain: 0.4, sigma: 0.0, length: 0.012, type: flat_top}
+        j_hpi: {gain: 0.4, sigma: 0.0, length: 0.006, type: flat_top}
+    q2:
+      f_qubit_mhz: 0.0
+      exchange_j_mhz: 80.0
+      pulses:
+        j_pi:  {gain: 0.45, sigma: 0.0, length: 0.011, type: flat_top}
+        j_hpi: {gain: 0.45, sigma: 0.0, length: 0.0055, type: flat_top}
+    q3:
+      f_qubit_mhz: 0.0
+      exchange_j_mhz: 75.0
+      pulses:
+        j_pi:  {gain: 0.42, sigma: 0.0, length: 0.013, type: flat_top}
+  gates:
+    p1: {dc_channel: 0, max_v: 1.5, crosscoupling: {b12: 0.08, b23: 0.03}}
+    b12:
+      dc_channel: 1
+      max_v: 1.2
+      exchange: {gain: 0.4, length: 0.012, type: flat_top}
+    b23:
+      dc_channel: 2
+      max_v: 1.2
+      exchange: {gain: 0.45, length: 0.011, type: flat_top}
+  sensors:
+    sensor: {v_operating: -0.35, g_setpoint: 0.5, transconductance: 0.02}
+  reservoirs:
+    res: {gamma_khz: 50.0, t_electron_mk: 30.0}

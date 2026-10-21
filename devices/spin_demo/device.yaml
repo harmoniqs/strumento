@@ -1,0 +1,53 @@
+# spin_demo — a quantum-dot spin instance (spin pack).
+#
+# A minimal double-dot: one driven Dot qubit, a plunger and a barrier gate. Fast axes (EDSR
+# drive, exchange pulses) are QICK generators; slow-DC electrostatics live on an external
+# voltage source (strumento.core.dc), mapped per gate under calibration.gates. Numbers are
+# synthetic but plausible.
+#
+# Wiring: drive=DAC0, plunger dc=DAC1, barrier dc/fast=DAC2, readout=DAC3 + ADC0. The snapshot
+# (soccfg_v2_spin) is fabricated with generators 0-3 and a single readout, so `strumento check`
+# validates this wiring against it and SimulatorSoc.from_device can assemble programs offline.
+
+pack: spin
+soccfg_snapshot: ../_fixtures/soccfg_v2_spin.json
+
+wiring:
+  lines:
+    q0:
+      name: q0
+      generators:
+        - {role: drive, dac_ch: 0, nyquist: 1}
+    p0:
+      name: p0
+      generators:
+        - {role: dc, dac_ch: 1, nyquist: 1}
+    b0:
+      name: b0
+      generators:
+        - {role: dc, dac_ch: 2, nyquist: 1}
+        - {role: fast, dac_ch: 2, nyquist: 1}
+  # charge-sensor readout (RF reflectometry off the ADC)
+  readout:
+    dac_ch: 3
+    adc_chs: [0]
+
+topology:
+  - {type: Dot, name: q0, encoding: ld}
+  - {type: Plunger, name: p0}
+  - {type: Barrier, name: b0}
+
+calibration:
+  dots:
+    q0:
+      f_qubit_mhz: 5000.0
+      exchange_j_mhz: 50.0
+      pulses:
+        pi:  {gain: 0.4, sigma: 0.020, type: gauss}
+        hpi: {gain: 0.2, sigma: 0.020, type: gauss}
+  gates:
+    p0: {dc_channel: 0, max_v: 1.5, crosscoupling: {b0: 0.12}}
+    b0:
+      dc_channel: 1
+      max_v: 1.2
+      exchange: {gain: 0.5, length: 0.05, type: flat_top}

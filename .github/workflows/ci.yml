@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - run: pip install ruff
+      - run: ruff check .
+
+  typecheck:
+    # mypy over the package, with the config in pyproject.toml ([tool.mypy]). The annotations
+    # are API documentation (pulse fields accept a Sweep; ops classes take a Device and their
+    # element), and this lane keeps them true. The runtime dependencies come from pyproject.toml
+    # itself, plus the `plot` extra so the display code is checked against matplotlib's types;
+    # the optional qick and mcp extras are not installed, and the config ignores them.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[plot]" mypy
+      - run: mypy
+
+  pure:
+    # The pure layers: no qick installed — proves core/packs import and test board-free.
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ".[test]"
+      - run: pytest -m "not qick" -q
+
+  qick:
+    # Full suite with qick installed (x86-safe: pynq is excluded off-arm by qick's env
+    # marker). Real tProc-v2 program assembly runs against the committed testbench soccfg —
+    # no board, no self-hosted runner. The spin pack's SimulatorSoc tests
+    # (test_spin_full_loop.py, test_experiment_contract.py spin experiments) run against
+    # devices/_fixtures/soccfg_v2_spin.json in this lane.
+    #
+    # The mcp tests are excluded here (`-m "not mcp"`, belt-and-braces on top of the file's own
+    # `pytest.importorskip("mcp")`): the `mcp` job below is the one place they run, with both
+    # extras installed, so a missing SDK can never look like a failure in this lane.
+    #
+    # The `plot` extra (matplotlib) is installed here only, so the display-layer tests run in this
+    # lane; `pure` stays matplotlib-free and proves those tests skip cleanly without it.
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ".[test,qick,plot]"
+      - run: pytest -q -m "not mcp"
+
+  mcp:
+    # The stateful agent door (D33). Needs BOTH extras: the SDK for the protocol surface and qick
+    # for the sessions that drive the simulator — including the capstone (the lab-session gate), where an
+    # in-process MCP client calibrates a simulated device end to end.
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ".[test,qick,mcp]"
+      - run: pytest -q -m mcp

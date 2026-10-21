@@ -1,0 +1,129 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "strumento"
+version = "0.1.0"
+description = "A first-principles QICK tProc-v2 experiment framework (device model + pulse IR + compiler + fitting)."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Harmoniqs" }]
+license = { text = "MIT" }
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+keywords = ["qick", "tproc-v2", "quantum", "control", "rfsoc", "calibration"]
+dependencies = [
+    "pydantic>=2",
+    "numpy",
+    "scipy",
+    "lmfit",
+    "pyyaml",
+    "tomli>=2.0; python_version<'3.11'",
+]
+
+[project.urls]
+Repository = "https://github.com/harmoniqs/strumento"
+
+[project.scripts]
+strumento = "strumento.cli:main"
+# The stateful agent door (D33): a long-lived lab session over stdio. Optional [mcp] extra.
+strumento-mcp = "strumento.mcp:main"
+
+[project.optional-dependencies]
+# qick (with qick.asm_v2) is required only for the compiler / program / mock
+# layers and any on-board run; the pure layers test without it.
+# bounded <0.3: the compiler/program/mock layers target asm_v2 (AveragerProgramV2 /
+# QickSweep1D), an API still moving inside 0.2.x — see #39 before bumping.
+qick = ["qick>=0.2.367,<0.3"]
+# the MCP SDK backs `strumento-mcp` only; `import strumento.mcp` works without it (build_server
+# raises a pointed ImportError), so the pure and qick lanes never need this extra.
+# pinned <2: the 2.x SDK removed create_connected_server_and_client_session and restructured
+# fastmcp into a separate server class — see #29 before bumping.
+mcp = ["mcp>=1.2,<2"]
+# matplotlib backs the optional display layer only (`go(..., display=True)` figures); without it
+# every experiment still runs and `outcome.figure` is None. Floor 3.5: the first release with
+# Python 3.10 wheels; the plot code uses only long-stable pyplot/axes calls. Kept out of `test` so
+# the pure lane proves the matplotlib-free path (its plot tests skip cleanly).
+plot = ["matplotlib>=3.5"]
+test = ["pytest", "tomli>=2.0; python_version<'3.11'"]
+dev = ["pytest", "ruff", "mypy"]
+
+# Modality packs are discovered via this entry-point group, so third-party
+# packs install rather than fork (spec §15.3).
+[project.entry-points."strumento.packs"]
+cqed = "strumento.packs.cqed"
+tweezer = "strumento.packs.tweezer"
+spin = "strumento.packs.spin"
+
+[tool.hatch.build.targets.wheel]
+packages = ["strumento"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "qick: requires qick (compiler / program / mock)",
+    "mcp: requires the MCP SDK (the [mcp] extra) — the stateful lab-session server (D33)",
+]
+# A leaked file handle fails the suite (issue #123). A ResourceWarning is issued from a
+# finalizer, where Python cannot raise it; pytest reports such an "unraisable" exception as a
+# PytestUnraisableExceptionWarning — so that category must be an error too, or the first line
+# alone would never fail a test.
+filterwarnings = [
+    "error::ResourceWarning",
+    "error::pytest.PytestUnraisableExceptionWarning",
+    # The legacy per-name Sweep (D36) must not creep back into the suite (issue #162); tests
+    # that exercise it on purpose expect the warning with pytest.warns.
+    "error:legacy per-name Sweep:DeprecationWarning",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+# E501 long lines in docstrings/comments are handled case-by-case; code stays <=100
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# core/record.py is the public task-record contract: a single pure-stdlib file that a QICK user
+# (or a supervisor written for an older interpreter) can vendor and run as-is. `datetime.UTC` is
+# 3.11-only, so it keeps `timezone.utc` deliberately — UP017 must not "modernize" that away.
+"strumento/core/record.py" = ["UP017"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["strumento"]
+
+[tool.mypy]
+# The typecheck the `dev` extra always implied, now configured and run in CI (the `typecheck`
+# job). The bar is "clean on the settings below": tighten (e.g. `disallow_untyped_defs`) only
+# together with the fixes, never by loosening a check to merge.
+files = ["strumento"]
+
+[[tool.mypy.overrides]]
+# Untyped third parties: qick ships no py.typed, the scientific stack (lmfit, scipy) ships no
+# stubs here, PyYAML's stubs are a separate package, and tomli is the py<3.11 fallback that
+# record.py already type-ignores.
+module = ["qick.*", "yaml", "lmfit", "lmfit.*", "scipy", "scipy.*", "tomli"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# The MCP SDK is an optional extra, imported lazily inside build_server. The typecheck lane
+# installs only the runtime dependencies, so the module is legitimately absent there.
+module = ["mcp", "mcp.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# matplotlib is the optional `plot` extra, imported lazily by the display layer. The typecheck
+# lane installs it, so the plot code is checked against matplotlib's own types; this override
+# only lets `mypy` run cleanly on a checkout without the extra.
+module = ["matplotlib", "matplotlib.*"]
+ignore_missing_imports = true

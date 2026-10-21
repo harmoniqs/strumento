@@ -1,0 +1,67 @@
+# spin_hole_demo — a Ge/SiGe hole-spin instance.
+#
+# A minimal hole-spin qubit: one HoleDot (driven via the plunger gate's AC field),
+# a plunger, a barrier with exchange for a CZ gate, a charge sensor with RF
+# reflectometry, and a reservoir. Models a single Ge/SiGe hole-spin qubit.
+#
+# Numbers are synthetic but plausible for a Ge/SiGe heterostructure.
+
+pack: spin
+
+wiring:
+  lines:
+    h1:
+      name: h1
+      generators:
+        - {role: drive, dac_ch: 0, nyquist: 1}
+    p1:
+      name: p1
+      generators:
+        - {role: dc, dac_ch: 1, nyquist: 1}
+    b1:
+      name: b1
+      generators:
+        - {role: dc, dac_ch: 2, nyquist: 1}
+        - {role: fast, dac_ch: 2, nyquist: 1}
+    sensor:
+      name: sensor
+      generators:
+        - {role: dc, dac_ch: 3, nyquist: 1}
+        - {role: readout, dac_ch: 3, nyquist: 1}
+    res:
+      name: res
+      generators:
+        - {role: dc, dac_ch: 4, nyquist: 1}
+  readout:
+    dac_ch: 3
+    adc_chs: [0]
+
+topology:
+  - {type: Dot, name: h1, encoding: hole}
+  - {type: Plunger, name: p1}
+  - {type: Barrier, name: b1}
+  - {type: ChargeSensor, name: sensor, sensor_type: set}
+  - {type: Reservoir, name: res}
+
+calibration:
+  dots:
+    h1:
+      f_qubit_mhz: 3200.0
+      g_factor: 1.8
+      dg_dv: 0.02
+      t1_us: 50.0
+      t2_star_us: 2.5
+      t2_echo_us: 15.0
+      pulses:
+        pi:  {gain: 0.5, sigma: 0.005, length: 0.0, type: gauss}
+        hpi: {gain: 0.25, sigma: 0.005, length: 0.0, type: gauss}
+  gates:
+    p1: {dc_channel: 0, max_v: 1.0, crosscoupling: {b1: 0.10}}
+    b1:
+      dc_channel: 1
+      max_v: 0.8
+      exchange: {gain: 0.4, length: 0.05, type: flat_top}
+  sensors:
+    sensor: {v_operating: -0.42, g_setpoint: 0.3, rf_freq_mhz: 312.5, rf_power_dbm: -30.0}
+  reservoirs:
+    res: {gamma_khz: 80.0, t_electron_mk: 25.0}

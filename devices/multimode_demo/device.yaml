@@ -1,0 +1,119 @@
+# multimode_demo — a generic multimode cQED device instance (cqed pack).
+#
+# Topology + wiring + calibration VALUES for one (fictional) fridge: a transmon dispersively
+# coupled to a cavity mode named "cavity" and two long-lived storage modes, with a driven coupler for
+# beamsplitter swaps. This is the worked example of the config-as-data model used throughout the
+# docs and tests: everything about *a specific device* lives here as data; the pack (element
+# types, pulse libraries, readout kind) is generic. Calibration numbers are synthetic but
+# physically plausible.
+#
+# It includes the calibration suite the cqed experiments read; the multimode ones run against it
+# in tests/packs/test_experiment_contract.py. The tests' v1-snapshot fixture copies this file and
+# rewrites its `soccfg_snapshot:` line, so keep that line as it is.
+#
+# Wiring: readout=DAC0(nyq2) + ADC0, qubit drive=DAC1, cavity=DAC2(nyq2), storage=DAC3(nyq2),
+# coupler(low/high)=DAC4, qubit sideband=DAC5. The snapshot (soccfg_v2_cqed) is fabricated with
+# generators 0-5 and a single readout, so `strumento check` validates this wiring against it.
+#
+# readout.frequency is 7000.0 MHz: the probe generator is wired nyquist:2, and NQZ2 on this
+# fixture's soccfg is [4792, 9585] MHz, so a readout frequency in NQZ1 (e.g. 750 MHz) would be
+# unreachable — and implausibly low for a 3D-cQED readout resonator anyway. Synthetic fixture
+# value; replace with your measured value.
+#
+# modes.cavity.chi (1.5 MHz, unsigned) is likewise a synthetic fixture value for pipeline
+# testing, not a measured device property; replace with your measured value.
+
+pack: cqed
+soccfg_snapshot: ../_fixtures/soccfg_v2_cqed.json
+
+wiring:
+  lines:
+    qubit:
+      name: qubit
+      generators:
+        - {role: drive,    dac_ch: 1, nyquist: 1, gen_type: full}
+        - {role: sideband, dac_ch: 5, nyquist: 1, gen_type: full}
+    cavity:
+      name: cavity
+      generators:
+        - {role: main, dac_ch: 2, nyquist: 2, gen_type: full}
+    storage:
+      name: storage
+      generators:
+        - {role: main, dac_ch: 3, nyquist: 2, gen_type: full}
+    coupler:
+      name: coupler
+      generators:
+        - {role: low,  dac_ch: 4, nyquist: 1, band_hz: [0.0, 1.8e9]}
+        - {role: high, dac_ch: 4, nyquist: 1, band_hz: [1.8e9, 1.0e12]}
+    readout:
+      name: readout
+      generators:
+        - {role: probe, dac_ch: 0, nyquist: 2, gen_type: full}
+  readout:
+    dac_ch: 0
+    adc_chs: [0]
+
+topology:
+  - {type: Transmon, name: qubit}
+  - {type: BosonicMode, name: cavity, role: cavity, line: cavity, freq_mhz: 5200.0}
+  - {type: BosonicMode, name: S1, role: storage, line: storage, freq_mhz: 6000.0}
+  - {type: BosonicMode, name: S2, role: storage, line: storage, freq_mhz: 6150.0}
+  - {type: Coupler, name: coupler}
+  - {type: ReadoutResonator, name: readout}
+
+# Instance-declared alias namespaces (D21): dev.sideband drives the qubit line's
+# sideband generator with the multiphoton-ladder ops.
+aliases:
+  sideband: {element: qubit, ops: sideband}
+
+calibration:
+  qubit:
+    f_ge: 4000.0
+    f_ef: 3820.0
+    T1: 100.0
+    T2: 50.0
+    T2_echo: 80.0
+    # drag_alpha intentionally unset: this is the shared docs/tests anchor and must keep the
+    # Gaussian ge default (DRAG is opt-in: it turns on when you calibrate the coefficient). The
+    # DRAG-on path is covered explicitly in tests/packs/cqed/test_library_transmon.py.
+    pulses:
+      pi_ge:  {gain: 8192, sigma: 0.030, length: 0.0, type: gauss}
+      hpi_ge: {gain: 4096, sigma: 0.030, length: 0.0, type: gauss}
+      pi_ef:  {gain: 7600, sigma: 0.030, length: 0.0, type: gauss}
+      hpi_ef: {gain: 3800, sigma: 0.030, length: 0.0, type: gauss}
+  readout:
+    frequency: 7000.0
+    gain: 1000
+    readout_length: 2.0
+    trig_offset: 0.5      # µs, from probe start to ADC trigger (time of flight); < readout_length
+    relax_delay: 500
+    phase: 0.0
+    threshold: 0.0
+    angle: 0.0
+  multiphoton:
+    f0-g1:
+      pi:
+        - {frequency: 2100.0, gain: 12000, length: 0.8, ramp_sigma: 0.01}
+        - {frequency: 2088.0, gain: 12500, length: 0.85, ramp_sigma: 0.01}
+      hpi:
+        - {frequency: 2100.0, gain: 12000, length: 0.4, ramp_sigma: 0.01}
+  swaps:
+    cavity-S1: {frequency: 800.0,  gain: 9000, length: 2.4, ramp_sigma: 0.01}
+    cavity-S2: {frequency: 950.0,  gain: 9500, length: 2.6, ramp_sigma: 0.01}
+  modes:
+    cavity:
+      revival_time: [1.6, 0.8]
+      displace: {gain: 6000, sigma: 0.040, type: gauss}
+      T1: 2000.0
+      T2: 1000.0
+      chi: 1.5  # synthetic fixture value; replace with your measured value
+      displacement_cal: 3000.0
+    S1:
+      revival_time: [2.0]
+      T1: 5000.0
+      chi: 0.8
+    S2:
+      revival_time: [2.1]
+      T1: 4500.0
+      chi: 0.75

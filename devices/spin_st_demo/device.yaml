@@ -1,0 +1,68 @@
+# spin_st_demo — a singlet-triplet (S-T0) double-dot instance.
+#
+# A minimal S-T0 qubit: two dots (left, right) in ST encoding, a barrier carrying
+# the exchange interaction, a plunger for detuning, and a charge sensor for PSB readout.
+# Control is entirely baseband: J(epsilon) pulses on the detuning axis.
+#
+# Numbers are synthetic but plausible for a GaAs or Si/SiGe double dot.
+
+pack: spin
+
+wiring:
+  lines:
+    left:
+      name: left
+      generators:
+        - {role: detuning, dac_ch: 0, nyquist: 1}
+    right:
+      name: right
+      generators:
+        - {role: detuning, dac_ch: 1, nyquist: 1}
+    p_left:
+      name: p_left
+      generators:
+        - {role: dc, dac_ch: 2, nyquist: 1}
+    b_lr:
+      name: b_lr
+      generators:
+        - {role: dc, dac_ch: 3, nyquist: 1}
+        - {role: fast, dac_ch: 3, nyquist: 1}
+    sensor:
+      name: sensor
+      generators:
+        - {role: dc, dac_ch: 4, nyquist: 1}
+        - {role: readout, dac_ch: 4, nyquist: 1}
+  readout:
+    dac_ch: 4
+    adc_chs: [0]
+
+topology:
+  - {type: Dot, name: left, encoding: st}
+  - {type: Dot, name: right, encoding: st}
+  - {type: Plunger, name: p_left}
+  - {type: Barrier, name: b_lr}
+  - {type: ChargeSensor, name: sensor, sensor_type: qpc}
+
+calibration:
+  dots:
+    left:
+      f_qubit_mhz: 0.0
+      exchange_j_mhz: 40.0
+      t2_star_us: 1.5
+      pulses:
+        j_pi:  {gain: 0.35, sigma: 0.0, length: 0.025, type: flat_top}
+        j_hpi: {gain: 0.35, sigma: 0.0, length: 0.0125, type: flat_top}
+        singlet_prep: {gain: 0.2, sigma: 0.0, length: 1.0, type: flat_top}
+    right:
+      f_qubit_mhz: 0.0
+      exchange_j_mhz: 40.0
+      pulses:
+        j_pi:  {gain: 0.35, sigma: 0.0, length: 0.025, type: flat_top}
+  gates:
+    p_left: {dc_channel: 0, max_v: 1.5, crosscoupling: {b_lr: 0.06}}
+    b_lr:
+      dc_channel: 1
+      max_v: 1.0
+      exchange: {gain: 0.35, length: 0.025, type: flat_top}
+  sensors:
+    sensor: {v_operating: -0.28, g_setpoint: 0.45}
